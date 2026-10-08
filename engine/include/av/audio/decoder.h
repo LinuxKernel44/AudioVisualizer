@@ -61,6 +61,7 @@ class Decoder {
     std::condition_variable cv_;
     bool formatReady_ = false;
     bool failed_ = false;
+    bool batchFrames_ = false;  // pack several compressed frames per input buffer (MP3 only)
 
     int sampleRate_ = 44100;
     int channels_ = 2;

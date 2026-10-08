@@ -150,6 +150,7 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
                 LOGI("beat model found no usable beats, keeping the DSP rhythm");
         };
     }
+    opts.timingReport = [](const std::string& m) { LOGI("%s", m.c_str()); };
     auto t = std::make_shared<Timeline>();
     const auto t0 = std::chrono::steady_clock::now();
     if (!analyzeAudio(src, opts, t.get(), &err)) {

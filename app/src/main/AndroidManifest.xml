@@ -13,6 +13,8 @@
         android:allowBackup="false"
         android:label="AudioVisualizer"
         android:theme="@style/Theme.AudioVisualizer">
+        <!-- Lets `simpleperf` profile release builds from the shell (no effect on other apps). -->
+        <profileable android:shell="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

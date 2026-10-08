@@ -32,9 +32,9 @@ grid fails it. The summary reports which source was used
 About 10 s of inference per 40 s of audio on a Galaxy S10 CPU (2.1 M parameters, 2 threads). Results are
 cached per file and per model, so this happens once. A 1500-frame chunk makes the attention layers
 allocate on the order of 1.4 GB transiently (measured on a Galaxy S10), so the ONNX Runtime arena is
-disabled and the model is only run for tracks up to 15 minutes; longer tracks keep the DSP rhythm. A
-one-hour track analyses in about 4.5 minutes with the DSP stage alone on the S10 with a flat memory
-profile (~170 MB).
+disabled and the model is only run for tracks up to 15 minutes; longer tracks keep the DSP rhythm. The DSP stage is
+decode bound: a one-hour MP3 analyses in about a minute on the S10 (MP3 frames are packed several
+per codec buffer), AAC takes about four to five minutes; memory stays flat (~170 MB).
 
 ## Licence
 Code and published weights are MIT-licensed. The authors note that some training material is under

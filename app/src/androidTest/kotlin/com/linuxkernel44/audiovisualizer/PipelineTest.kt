@@ -167,6 +167,9 @@ class FormatTest {
                 if (engine.analysisState() != 2) { failures += "$name: analysis state ${engine.analysisState()} (${engine.analysisError()})"; continue }
                 val s = AnalysisSummary.parse(engine.summaryJson())
                 if (s == null || s.durationSec !in 3.5f..4.5f) failures += "$name: bad summary"
+                // The analysis counts the samples it really decoded: dropped codec frames would make it
+                // shorter than the container duration (priming/padding explain a few tens of ms).
+                if (s != null && Math.abs(s.durationSec * 1000.0 - dur) > 150.0) failures += "$name: decoded ${s.durationSec} s but the file says $dur ms"
                 // Playback path: start, let the spectrum worker run briefly, seek, stop.
                 engine.play()
                 Thread.sleep(400)

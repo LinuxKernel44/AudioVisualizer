@@ -30,7 +30,7 @@ video export live in a multi-threaded C++20 engine reached through a single JNI 
 | | |
 |---|---|
 | Analysis of a 40 s track | 3 s (DSP) / ~10 s with the beat model |
-| Analysis of a 60 min track | ~4.5 min (DSP), memory flat at ~170 MB |
+| Analysis of a 20 min MP3 / AAC | 18 s / ~60-90 s (decode bound; compute is ~1 s on a PC), memory flat at ~170 MB |
 | Preview | 60 fps for bars / radial / tunnel / fractal; particles adapt resolution to hold 60 fps |
 | Export 720p30 / 1080p60 / 4K30 | 5.7x / 2.0x / 0.7x real time |
 
