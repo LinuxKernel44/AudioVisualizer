@@ -138,6 +138,7 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                     holder.addCallback(object : SurfaceHolder.Callback {
                         override fun surfaceCreated(h: SurfaceHolder) {}
                         override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {
+                            vm.onSurfaceSize(w, hh)
                             vm.engine.setSurface(h.surface)
                         }
                         override fun surfaceDestroyed(h: SurfaceHolder) {
@@ -156,8 +157,10 @@ private fun PlayerScreen(vm: PlayerViewModel) {
             SCENE_NAMES.forEachIndexed { i, n ->
                 FilterChip(selected = vm.scene == i, onClick = { vm.selectScene(i) }, label = { Text(n) })
             }
-            FilterChip(selected = vm.showControls, onClick = { vm.showControls = !vm.showControls }, label = { Text("Tune") })
+            FilterChip(selected = vm.showControls, onClick = { vm.showControls = !vm.showControls; vm.showBranding = false }, label = { Text("Tune") })
+            FilterChip(selected = vm.showBranding, onClick = { vm.showBranding = !vm.showBranding; vm.showControls = false }, label = { Text("Brand") })
         }
+        if (vm.showBranding) BrandingPanel(vm.branding, { vm.updateBranding(it) }, Modifier.padding(top = 8.dp))
         if (vm.showControls) ControlsPanel(vm.controls, { vm.updateControls(it) }, vm.showPerf, { vm.showPerf = it }, Modifier.padding(top = 8.dp))
         }
         if (vm.showPerf) {

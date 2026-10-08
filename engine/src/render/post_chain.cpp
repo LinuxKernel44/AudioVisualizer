@@ -3,6 +3,7 @@
 #include <android/log.h>
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include "av/render/scene.h"
@@ -114,10 +115,10 @@ bool PostChain::create(const vk::Context& ctx, VkShaderModule vs, VkDescriptorSe
     dl.pBindings = b;
     VK_TRY(vkCreateDescriptorSetLayout(ctx.dev, &dl, nullptr, &texLayout_));
 
-    VkDescriptorSetLayout layouts[2] = {frameLayout_, texLayout_};
+    VkDescriptorSetLayout layouts[3] = {frameLayout_, texLayout_, texLayout_};  // set 2: branding layers
     VkPushConstantRange pcr{VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16};
     VkPipelineLayoutCreateInfo pl{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-    pl.setLayoutCount = 2;
+    pl.setLayoutCount = 3;
     pl.pSetLayouts = layouts;
     pl.pushConstantRangeCount = 1;
     pl.pPushConstantRanges = &pcr;
@@ -142,7 +143,68 @@ bool PostChain::create(const vk::Context& ctx, VkShaderModule vs, VkDescriptorSe
     if (!pipe(shaders::post_up_frag, shaders::post_up_fragSize, rpAdd_, true, &pipes_.up)) return false;
     if (!pipe(shaders::post_mix_frag, shaders::post_mix_fragSize, rpPost_, false, &pipes_.mix)) return false;
     if (!pipe(shaders::post_feedback_frag, shaders::post_feedback_fragSize, rpPost_, false, &pipes_.feedback)) return false;
-    return true;
+    const uint8_t clear[4] = {0, 0, 0, 0};  // empty branding layers until the app provides some
+    return setOverlay(clear, 1, 1) && setBackground(clear, 1, 1);
+}
+
+bool PostChain::uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint32_t h) {
+    vkDeviceWaitIdle(ctx_->dev);  // the old image may still be referenced by frames in flight
+    sets_.clear();
+    vkResetDescriptorPool(ctx_->dev, pool_, 0);
+    vk::destroy(*ctx_, *img);
+    if (!vk::createImage2D(*ctx_, w, h, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, img)) return false;
+    vk::Buffer staging;
+    const VkDeviceSize bytes = static_cast<VkDeviceSize>(w) * h * 4;
+    if (!vk::createBuffer(*ctx_, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, true, &staging)) return false;
+    std::memcpy(staging.mapped, rgba, bytes);
+    VkCommandBufferAllocateInfo ai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    ai.commandPool = ctx_->cmdPool;
+    ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    ai.commandBufferCount = 1;
+    VkCommandBuffer cmd;
+    if (vkAllocateCommandBuffers(ctx_->dev, &ai, &cmd) != VK_SUCCESS) {
+        vk::destroy(*ctx_, staging);
+        return false;
+    }
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+    VkImageMemoryBarrier br{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    br.srcQueueFamilyIndex = br.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    br.image = img->img;
+    br.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    br.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    br.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    br.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &br);
+    VkBufferImageCopy region{};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {w, h, 1};
+    vkCmdCopyBufferToImage(cmd, staging.buf, img->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    br.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    br.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    br.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    br.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &br);
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &cmd;
+    const bool ok = vkQueueSubmit(ctx_->queue, 1, &si, VK_NULL_HANDLE) == VK_SUCCESS;
+    if (ok) vkQueueWaitIdle(ctx_->queue);
+    vkFreeCommandBuffers(ctx_->dev, ctx_->cmdPool, 1, &cmd);
+    vk::destroy(*ctx_, staging);
+    return ok;
+}
+
+bool PostChain::setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) {
+    static const uint8_t clear[4] = {0, 0, 0, 0};
+    return rgba && w && h ? uploadRgba(&overlay_, rgba, w, h) : uploadRgba(&overlay_, clear, 1, 1);
+}
+
+bool PostChain::setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) {
+    static const uint8_t clear[4] = {0, 0, 0, 0};
+    return rgba && w && h ? uploadRgba(&background_, rgba, w, h) : uploadRgba(&background_, clear, 1, 1);
 }
 
 bool PostChain::setSwapchainPass(VkRenderPass pass) {
@@ -243,6 +305,8 @@ void PostChain::destroy() {
     destroyTarget(&mix_);
     for (auto& t : fb_) destroyTarget(&t);
     for (auto& t : bloom_) destroyTarget(&t);
+    vk::destroy(*ctx_, overlay_);
+    vk::destroy(*ctx_, background_);
     for (VkPipeline p : {pipes_.down0, pipes_.down, pipes_.up, pipes_.mix, pipes_.feedback, pipes_.composite})
         if (p) vkDestroyPipeline(ctx_->dev, p, nullptr);
     pipes_ = Pipelines{};
@@ -309,7 +373,7 @@ void PostChain::endScenePass(VkCommandBuffer cmd) { vkCmdEndRenderPass(cmd); }
 
 void PostChain::fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuffer fb, VkExtent2D ext,
                                VkPipeline pipe, VkDescriptorSet frameSet, VkDescriptorSet tex,
-                               const float pc[4], bool clear) {
+                               const float pc[4], bool clear, VkDescriptorSet extra) {
     VkClearValue cv{};
     VkRenderPassBeginInfo rb{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     rb.renderPass = rp;
@@ -323,8 +387,8 @@ void PostChain::fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuff
     vkCmdSetViewport(cmd, 0, 1, &vp);
     vkCmdSetScissor(cmd, 0, 1, &sc);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
-    VkDescriptorSet sets[2] = {frameSet, tex};
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 2, sets, 0, nullptr);
+    VkDescriptorSet sets[3] = {frameSet, tex, extra};
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, extra ? 3 : 2, sets, 0, nullptr);
     vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, pc);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
@@ -366,7 +430,8 @@ void PostChain::record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look
     }
 
     const float pc[4] = {0, 0, 0, 0};
-    fullscreenPass(cmd, swapPass, swapFb, swapExtent, pipes_.composite, frameSet, pairSet(src, bloom_[0].img.view), pc);
+    fullscreenPass(cmd, swapPass, swapFb, swapExtent, pipes_.composite, frameSet, pairSet(src, bloom_[0].img.view), pc, false,
+                   pairSet(overlay_.view, background_.view));
 }
 
 }  // namespace av

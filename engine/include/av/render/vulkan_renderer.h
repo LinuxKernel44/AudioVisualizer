@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "av/core/triple_buffer.h"
 #include "av/core/visual_state.h"
@@ -34,6 +35,15 @@ public:
     void setThermalLevel(int level) { thermal_.store(level); }
     void setAutoScale(bool on) { autoScale_.store(on); }
 
+    /// Branding layers (title/logo overlay, background image), stretched over the frame. The pixel
+    /// data is premultiplied (overlay) / plain (background) sRGB RGBA8; empty clears the layer.
+    void setOverlayImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h);
+    void setBackgroundImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h);
+    void setBrandingOpacity(float overlay, float background) {
+        overlayOpacity_.store(overlay);
+        backgroundOpacity_.store(background);
+    }
+
     struct Perf {
         float frameMs = 0.f;  // presentation interval
         float gpuMs = 0.f;    // GPU time of the last measured frame (0 if unsupported)
@@ -56,6 +66,15 @@ private:
     std::atomic<float> scaleNow_{1.0f};
     std::atomic<int> thermal_{0};
     std::atomic<bool> autoScale_{true};
+    struct Layer {
+        std::vector<uint8_t> rgba;
+        uint32_t w = 0, h = 0;
+        bool dirty = false;
+    };
+    std::mutex layerMu_;
+    Layer overlay_, background_;
+    std::atomic<bool> layersDirty_{false};
+    std::atomic<float> overlayOpacity_{1.f}, backgroundOpacity_{0.f};
 
     std::mutex mu_;
     std::condition_variable cv_;

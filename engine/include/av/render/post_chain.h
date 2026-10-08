@@ -21,6 +21,12 @@ public:
     /// The composite pass renders into swapchain images of this render pass.
     bool setSwapchainPass(VkRenderPass pass);
 
+    /// Branding layers composed in the final pass: a premultiplied sRGB RGBA overlay (title, logo) and
+    /// an sRGB background image. Pass null to clear. The images are stretched over the whole frame, so
+    /// callers prepare them at the target aspect ratio.
+    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h);
+    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h);
+
     VkRenderPass scenePass() const { return rpScene_; }
     VkExtent2D extent() const { return {w_, h_}; }
     VkFormat hdrFormat() const { return hdrFormat_; }
@@ -49,7 +55,8 @@ private:
     VkDescriptorSet pairSet(VkImageView a, VkImageView b);
     void fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuffer fb, VkExtent2D ext,
                         VkPipeline pipe, VkDescriptorSet frameSet, VkDescriptorSet tex, const float pc[4],
-                        bool clear = false);
+                        bool clear = false, VkDescriptorSet extra = VK_NULL_HANDLE);
+    bool uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint32_t h);
     void clearTargets();
 
     const vk::Context* ctx_ = nullptr;
@@ -69,6 +76,7 @@ private:
     int fbCur_ = 0;
     uint32_t w_ = 0, h_ = 0;
     std::map<std::pair<VkImageView, VkImageView>, VkDescriptorSet> sets_;
+    vk::Image overlay_, background_;
 };
 
 }  // namespace av

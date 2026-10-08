@@ -5,6 +5,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "av/core/render_settings.h"
 
@@ -23,6 +24,13 @@ struct ExportParams {
     RenderSettings settings;
     std::string cacheDir;
     std::string modelPath;  // optional Beat This! ONNX model
+    // Branding layers prepared at the output aspect ratio (RGBA8, premultiplied overlay).
+    std::vector<uint8_t> overlay;
+    uint32_t overlayW = 0, overlayH = 0;
+    std::vector<uint8_t> background;
+    uint32_t backgroundW = 0, backgroundH = 0;
+    float overlayOpacity = 1.f;
+    float backgroundOpacity = 0.f;
 };
 
 /// Offline, deterministic video export: decode -> FrontEnd -> Vulkan offscreen render -> NV12 ->

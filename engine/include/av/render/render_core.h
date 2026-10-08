@@ -36,6 +36,11 @@ public:
     void record(uint32_t i, const VisualState& vs, float timeSec, float dt, VkFramebuffer fb,
                 VkExtent2D extent, VkRenderPass pass, float quality = 1.f);
 
+    /// Branding layers (see PostChain). Opacities are 0..1.
+    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) { return post_.setOverlay(rgba, w, h); }
+    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) { return post_.setBackground(rgba, w, h); }
+    void setBrandingOpacity(float overlay, float background) { overlayOpacity_ = overlay; backgroundOpacity_ = background; }
+
     size_t sceneCount() const { return scenes_.size(); }
     const char* sceneName(size_t i) const { return scenes_[i % scenes_.size()]->name(); }
     VkDescriptorSetLayout frameLayout() const { return frameLayout_; }
@@ -48,6 +53,7 @@ private:
     VkShaderModule fullscreenVs_ = VK_NULL_HANDLE;
     Slot slots_[kSlots];
     PostChain post_;
+    float overlayOpacity_ = 1.f, backgroundOpacity_ = 0.f;
     std::vector<std::unique_ptr<Scene>> scenes_;
 };
 

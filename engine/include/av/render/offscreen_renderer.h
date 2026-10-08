@@ -22,6 +22,11 @@ public:
     bool create(uint32_t width, uint32_t height, float internalScale = 1.f);
     void destroy();
 
+    /// Branding layers; call after create() and before the first render().
+    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) { return core_.setOverlay(rgba, w, h); }
+    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) { return core_.setBackground(rgba, w, h); }
+    void setBrandingOpacity(float overlay, float background) { core_.setBrandingOpacity(overlay, background); }
+
     bool render(int64_t frameIndex, const VisualState& vs, float timeSec, float dt, const FrameSink& sink);
     /// Delivers the frame still in flight (call after the last render()).
     bool flush(const FrameSink& sink);

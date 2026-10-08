@@ -23,7 +23,7 @@
 namespace av {
 
 namespace {
-void fillFrameData(FrameData* d, const VisualState& vs, VkExtent2D ext, float time, float dt) {
+void fillFrameData(FrameData* d, const VisualState& vs, VkExtent2D ext, float time, float dt, float overlayOpacity, float backgroundOpacity) {
     std::memset(d, 0, sizeof(*d));
     d->res[0] = static_cast<float>(ext.width);
     d->res[1] = static_cast<float>(ext.height);
@@ -52,6 +52,8 @@ void fillFrameData(FrameData* d, const VisualState& vs, VkExtent2D ext, float ti
     d->ctl[0] = vs.transition;
     d->ctl[1] = vs.sceneTime;
     d->ctl[2] = static_cast<float>(std::max<uint32_t>(vs.numBars, 1));
+    d->brand[0] = overlayOpacity;
+    d->brand[1] = backgroundOpacity;
 }
 }  // namespace
 
@@ -138,7 +140,7 @@ void RenderCore::record(uint32_t i, const VisualState& vs, float timeSec, float 
                         VkExtent2D extent, VkRenderPass pass, float quality) {
     Slot& s = slot(i);
     const VkExtent2D internal = post_.extent();
-    fillFrameData(static_cast<FrameData*>(s.ubo.mapped), vs, internal, timeSec, dt);
+    fillFrameData(static_cast<FrameData*>(s.ubo.mapped), vs, internal, timeSec, dt, overlayOpacity_, backgroundOpacity_);
 
     Scene* a = scenes_[vs.sceneA % scenes_.size()].get();
     Scene* b = scenes_[vs.sceneB % scenes_.size()].get();

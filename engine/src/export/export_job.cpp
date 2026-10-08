@@ -120,6 +120,9 @@ bool ExportJob::runImpl(std::string* err) {
         *err = "could not create the GPU renderer for this resolution";
         return false;
     }
+    if (!p_.overlay.empty()) renderer.setOverlay(p_.overlay.data(), p_.overlayW, p_.overlayH);
+    if (!p_.background.empty()) renderer.setBackground(p_.background.data(), p_.backgroundW, p_.backgroundH);
+    renderer.setBrandingOpacity(p_.overlayOpacity, p_.backgroundOpacity);
     MuxSink mux;
     if (!mux.open(p_.outFd, 2)) {
         *err = "could not open the output file";

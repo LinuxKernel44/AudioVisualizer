@@ -338,6 +338,18 @@ void VulkanRenderer::stop() {
     if (thread_.joinable()) thread_.join();
 }
 
+void VulkanRenderer::setOverlayImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) {
+    std::lock_guard<std::mutex> lk(layerMu_);
+    overlay_ = {std::move(rgba), w, h, true};
+    layersDirty_ = true;
+}
+
+void VulkanRenderer::setBackgroundImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) {
+    std::lock_guard<std::mutex> lk(layerMu_);
+    background_ = {std::move(rgba), w, h, true};
+    layersDirty_ = true;
+}
+
 void VulkanRenderer::setSurface(ANativeWindow* window) {
     if (window) ANativeWindow_acquire(window);
     std::unique_lock<std::mutex> lk(mu_);
@@ -427,6 +439,18 @@ void VulkanRenderer::run() {
                     hintFps = fpsTarget;
                 }
             }
+            if (layersDirty_.exchange(false)) {
+                std::lock_guard<std::mutex> lk(layerMu_);
+                if (overlay_.dirty) {
+                    vk.core.setOverlay(overlay_.rgba.empty() ? nullptr : overlay_.rgba.data(), overlay_.w, overlay_.h);
+                    overlay_.dirty = false;
+                }
+                if (background_.dirty) {
+                    vk.core.setBackground(background_.rgba.empty() ? nullptr : background_.rgba.data(), background_.w, background_.h);
+                    background_.dirty = false;
+                }
+            }
+            vk.core.setBrandingOpacity(overlayOpacity_.load(), backgroundOpacity_.load());
             const auto work0 = std::chrono::steady_clock::now();
             const bool drawn = vk.drawFrame(state_.read(), t, std::min(dt, 0.1f), scale);
             if (__builtin_available(android 33, *)) {

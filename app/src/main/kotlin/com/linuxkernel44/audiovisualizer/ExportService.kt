@@ -80,6 +80,9 @@ class ExportService : Service() {
             outUri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
                 ?: throw IllegalStateException("Could not create the output file")
             val cacheDir = java.io.File(cacheDir, "analysis").apply { mkdirs() }.absolutePath
+            val branding = Branding.load(getSharedPreferences("branding", Context.MODE_PRIVATE))
+            val overlay = BrandingRenderer.overlay(this, branding, cfg.width, cfg.height)
+            val background = BrandingRenderer.background(this, branding, cfg.width, cfg.height)
             val audioPfd = resolver.openFileDescriptor(audio, "r") ?: throw IllegalStateException("Cannot open the audio file")
             val outPfd = resolver.openFileDescriptor(outUri, "rw") ?: throw IllegalStateException("Cannot open the output file")
             audioPfd.use { a ->
@@ -89,6 +92,9 @@ class ExportService : Service() {
                         controls.sensitivity, controls.gainBass, controls.gainMid, controls.gainTreble,
                         controls.smoothing, controls.palette, controls.beatFlash, controls.bloom, cacheDir,
                         BeatModel.path(applicationContext),
+                        overlay?.rgba, overlay?.width ?: 0, overlay?.height ?: 0,
+                        background?.rgba, background?.width ?: 0, background?.height ?: 0,
+                        branding.overlayOpacity, if (background != null) branding.backgroundOpacity else 0f,
                     )
                     // The native job duplicated both descriptors; poll until it finishes.
                     while (true) {

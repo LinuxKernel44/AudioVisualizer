@@ -61,6 +61,9 @@ public:
     void setTargetFps(float fps) { renderer_.setTargetFps(fps); }
     void setThermalLevel(int level) { renderer_.setThermalLevel(level); }
     void setAutoScale(bool on) { renderer_.setAutoScale(on); }
+    void setOverlayImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) { renderer_.setOverlayImage(std::move(rgba), w, h); }
+    void setBackgroundImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) { renderer_.setBackgroundImage(std::move(rgba), w, h); }
+    void setBrandingOpacity(float overlay, float background) { renderer_.setBrandingOpacity(overlay, background); }
     VulkanRenderer::Perf perf() const { return renderer_.perf(); }
 
 private:
