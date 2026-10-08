@@ -81,7 +81,7 @@ if(ANDROID)
     target_compile_options(avengine PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
     # APIs newer than minSdk (ADPF, API 33) are weak symbols and called behind __builtin_available.
     target_compile_definitions(avengine PRIVATE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
-    target_link_libraries(avengine PRIVATE avcore log android aaudio mediandk vulkan)
+    target_link_libraries(avengine PRIVATE avcore log android nativewindow aaudio mediandk vulkan)
     if(ORT_ROOT)
         target_sources(avengine PRIVATE src/ml/onnx_beat_model.cpp)
         target_link_libraries(avengine PRIVATE onnxruntime)

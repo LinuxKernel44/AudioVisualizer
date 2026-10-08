@@ -34,6 +34,9 @@ public:
     /// Android thermal status (0 none .. 5 shutdown): caps the render scale when the device heats up.
     void setThermalLevel(int level) { thermal_.store(level); }
     void setAutoScale(bool on) { autoScale_.store(on); }
+    /// Battery saver: caps presentation at 30 fps (and asks the display to follow), limits the
+    /// resolution scale and lets the GPU idle between frames.
+    void setPowerSaver(bool on) { powerSaver_.store(on); }
 
     /// Branding layers (title/logo overlay, background image), stretched over the frame. The pixel
     /// data is premultiplied (overlay) / plain (background) sRGB RGBA8; empty clears the layer.
@@ -66,6 +69,7 @@ private:
     std::atomic<float> scaleNow_{1.0f};
     std::atomic<int> thermal_{0};
     std::atomic<bool> autoScale_{true};
+    std::atomic<bool> powerSaver_{false};
     struct Layer {
         std::vector<uint8_t> rgba;
         uint32_t w = 0, h = 0;

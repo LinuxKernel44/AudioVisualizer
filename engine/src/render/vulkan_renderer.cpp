@@ -380,6 +380,7 @@ void VulkanRenderer::run() {
     APerformanceHintManager* hintMgr = nullptr;
     APerformanceHintSession* hint = nullptr;
     float hintFps = 0.f;
+    bool appliedSaver = false;
 
     while (instanceOk) {
         ANativeWindow* incoming = nullptr;
@@ -424,11 +425,12 @@ void VulkanRenderer::run() {
                 statFrames = 0;
                 statSum = 0.0;
             }
-            const float fpsTarget = targetFps_.load();
+            const float fpsTarget = powerSaver_.load() ? std::min(30.f, targetFps_.load()) : targetFps_.load();
             const int thermal = thermal_.load();
             const float thermalCap = thermal >= 5 ? 0.5f : thermal == 4 ? 0.55f : thermal == 3 ? 0.7f : thermal == 2 ? 0.85f : 1.f;
             const float userMax = std::min(1.f, renderScale_.load());
-            const float cap = std::min(userMax, thermalCap);
+            const bool saver = powerSaver_.load();
+            const float cap = std::min({userMax, thermalCap, saver ? 0.7f : 1.f});
             if (scale > cap) scale = std::max(kMinScale, cap);
             if (__builtin_available(android 33, *)) {
                 if (!hint && !hintMgr) hintMgr = APerformanceHint_getManager();
@@ -451,6 +453,12 @@ void VulkanRenderer::run() {
                 }
             }
             vk.core.setBrandingOpacity(overlayOpacity_.load(), backgroundOpacity_.load());
+            if (saver != appliedSaver && current) {
+                if (__builtin_available(android 30, *)) {  // let the display drop its refresh rate too
+                    ANativeWindow_setFrameRate(current, saver ? 30.f : 0.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
+                }
+                appliedSaver = saver;
+            }
             const auto work0 = std::chrono::steady_clock::now();
             const bool drawn = vk.drawFrame(state_.read(), t, std::min(dt, 0.1f), scale);
             if (__builtin_available(android 33, *)) {
@@ -458,6 +466,10 @@ void VulkanRenderer::run() {
                     const double cpuNs = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - work0).count();
                     APerformanceHint_reportActualWorkDuration(hint, static_cast<int64_t>(std::max(cpuNs, static_cast<double>(vk.gpuMs) * 1e6)));
                 }
+            }
+            if (saver) {  // hold ~30 fps even if the compositor would present sooner
+                const double spent = std::chrono::duration<double>(std::chrono::steady_clock::now() - now).count();
+                if (spent < 1.0 / 30.0) std::this_thread::sleep_for(std::chrono::duration<double>(1.0 / 30.0 - spent));
             }
             gpuMs_ = vk.gpuMs;
             scaleNow_ = scale;

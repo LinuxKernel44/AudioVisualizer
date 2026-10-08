@@ -98,6 +98,7 @@ JNI(void, setBrandingOpacity)(JNIEnv*, jobject, jlong h, jfloat overlay, jfloat 
 JNI(void, setTargetFps)(JNIEnv*, jobject, jlong h, jfloat fps) { from(h)->setTargetFps(fps); }
 JNI(void, setThermalLevel)(JNIEnv*, jobject, jlong h, jint level) { from(h)->setThermalLevel(level); }
 JNI(void, setAutoScale)(JNIEnv*, jobject, jlong h, jboolean on) { from(h)->setAutoScale(on); }
+JNI(void, setPowerSaver)(JNIEnv*, jobject, jlong h, jboolean on) { from(h)->setPowerSaver(on); }
 JNI(jfloatArray, perf)(JNIEnv* env, jobject, jlong h) {
     const auto p = from(h)->perf();
     const jfloat v[4] = {p.frameMs, p.gpuMs, p.scale, p.targetFps};

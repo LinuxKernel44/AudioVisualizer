@@ -39,6 +39,7 @@ android {
     }
 
     buildFeatures { compose = true }
+    testOptions { unitTests.isReturnDefaultValues = true }
 
     // The ONNX model is opened through AssetFileDescriptor, which needs it stored uncompressed.
     androidResources { noCompress += "onnx" }
@@ -70,4 +71,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")  // the android.jar stubs of org.json do nothing in JVM tests
 }
