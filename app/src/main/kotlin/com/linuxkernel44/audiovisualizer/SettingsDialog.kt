@@ -55,6 +55,18 @@ fun SettingsDialog(vm: PlayerViewModel, onDismiss: () -> Unit) {
                     Text("Adapt resolution to keep the frame rate", Modifier.weight(1f).padding(top = 12.dp))
                     Switch(vm.autoResolution, { vm.setAutoResolutionEnabled(it) })
                 }
+                if (vm.recents.isNotEmpty()) {
+                    HorizontalDivider()
+                    Text("Recent tracks")
+                    vm.recents.forEach { r ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            TextButton(onClick = { vm.open(android.net.Uri.parse(r.uri)); onDismiss() }, modifier = Modifier.weight(1f)) {
+                                Text(r.name, maxLines = 1)
+                            }
+                            TextButton(onClick = { vm.forgetRecent(r.uri) }) { Text("✕") }
+                        }
+                    }
+                }
                 HorizontalDivider()
                 Text("Presets")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

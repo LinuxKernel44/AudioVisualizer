@@ -214,6 +214,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val recentStore = RecentTracks(app.getSharedPreferences("recent", android.content.Context.MODE_PRIVATE))
+    var recents by mutableStateOf(recentStore.list())
+        private set
+
+    fun forgetRecent(uri: String) {
+        recents = recentStore.remove(uri)
+    }
+
     var showControls by mutableStateOf(false)
     var showPerf by mutableStateOf(false)
     var perfText by mutableStateOf("")
@@ -288,6 +296,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             loading = false
             if (err == null) {
                 trackName = name ?: "Audio"
+                recents = recentStore.add(RecentTrack(uri.toString(), trackName ?: "Audio"))
                 fillTitleFromMetadata(uri)
                 durationMs = engine.durationMs()
                 positionMs = 0
