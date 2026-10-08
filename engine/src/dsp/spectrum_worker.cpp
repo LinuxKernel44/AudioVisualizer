@@ -6,7 +6,7 @@
 #include <cstring>
 #include <vector>
 
-#include "av/dsp/spectrum.h"
+#include "av/dsp/bar_spectrum.h"
 
 #if defined(__ANDROID__)
 #include <sys/resource.h>
@@ -16,7 +16,6 @@
 namespace av {
 
 namespace {
-constexpr size_t kFftSize = 2048;
 constexpr size_t kBars = 64;
 constexpr float kAttack = 0.65f;   // fraction of the gap closed per hop when rising
 constexpr float kRelease = 0.90f;  // multiplicative decay per hop when falling
@@ -42,7 +41,8 @@ void SpectrumWorker::run() {
 #if defined(__ANDROID__)
     setpriority(PRIO_PROCESS, static_cast<id_t>(gettid()), -4);
 #endif
-    SpectrumAnalyzer analyzer(kFftSize, sampleRate_, kBars);
+    BarSpectrum analyzer(sampleRate_, kBars);
+    const size_t kFftSize = analyzer.window();
     const size_t hop = static_cast<size_t>(sampleRate_ / 100);  // ~100 updates per second
     std::vector<float> window(kFftSize, 0.f), bars(kBars), smooth(kBars, 0.f);
     float rms = 0.f;

@@ -27,6 +27,7 @@ public:
     bool load(int fd, std::string* error);
     bool play();
     bool pause();
+    bool seek(int64_t ms);
     void setSurface(ANativeWindow* window);
 
     bool loaded() const { return decoder_ != nullptr; }

@@ -22,10 +22,15 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -94,7 +99,18 @@ private fun PlayerScreen(vm: PlayerViewModel) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 if (vm.loading) CircularProgressIndicator()
                 if (vm.trackName != null) {
-                    Text("${formatTime(vm.positionMs)} / ${formatTime(vm.durationMs)}", color = Color.White)
+                    var dragging by remember { mutableStateOf<Float?>(null) }
+                    val shown = dragging ?: vm.positionMs.toFloat()
+                    Slider(
+                        value = shown.coerceIn(0f, vm.durationMs.toFloat().coerceAtLeast(1f)),
+                        onValueChange = { dragging = it },
+                        onValueChangeFinished = {
+                            dragging?.let { vm.seekTo(it.toLong()) }
+                            dragging = null
+                        },
+                        valueRange = 0f..vm.durationMs.toFloat().coerceAtLeast(1f),
+                    )
+                    Text("${formatTime(shown.toLong())} / ${formatTime(vm.durationMs)}", color = Color.White)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
                     Button(onClick = {

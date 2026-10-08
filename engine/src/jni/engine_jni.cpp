@@ -25,6 +25,7 @@ JNI(jstring, load)(JNIEnv* env, jobject, jlong h, jint fd) {
 
 JNI(jboolean, play)(JNIEnv*, jobject, jlong h) { return from(h)->play(); }
 JNI(jboolean, pause)(JNIEnv*, jobject, jlong h) { return from(h)->pause(); }
+JNI(jboolean, seekTo)(JNIEnv*, jobject, jlong h, jlong ms) { return from(h)->seek(ms); }
 JNI(jlong, positionMs)(JNIEnv*, jobject, jlong h) { return from(h)->positionMs(); }
 JNI(jlong, durationMs)(JNIEnv*, jobject, jlong h) { return from(h)->durationMs(); }
 JNI(jboolean, isPlaying)(JNIEnv*, jobject, jlong h) { return from(h)->isPlaying(); }

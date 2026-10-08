@@ -56,6 +56,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun seekTo(ms: Long) {
+        if (trackName == null) return
+        positionMs = ms
+        worker.execute {  // seeking blocks briefly on the decoder; keep it off the UI thread
+            engine.seekTo(ms)
+            refresh()
+        }
+    }
+
     fun togglePlay() {
         if (trackName == null) return
         if (engine.isPlaying()) engine.pause() else engine.play()

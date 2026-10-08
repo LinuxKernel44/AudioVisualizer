@@ -9,6 +9,7 @@ class NativeEngine {
     fun load(fd: Int): String? = load(handle, fd)
     fun play(): Boolean = play(handle)
     fun pause(): Boolean = pause(handle)
+    fun seekTo(ms: Long): Boolean = seekTo(handle, ms)
     fun positionMs(): Long = positionMs(handle)
     fun durationMs(): Long = durationMs(handle)
     fun isPlaying(): Boolean = isPlaying(handle)
@@ -28,6 +29,7 @@ class NativeEngine {
     private external fun load(h: Long, fd: Int): String?
     private external fun play(h: Long): Boolean
     private external fun pause(h: Long): Boolean
+    private external fun seekTo(h: Long, ms: Long): Boolean
     private external fun positionMs(h: Long): Long
     private external fun durationMs(h: Long): Long
     private external fun isPlaying(h: Long): Boolean

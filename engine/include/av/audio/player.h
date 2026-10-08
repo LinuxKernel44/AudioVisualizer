@@ -22,6 +22,10 @@ public:
     void close();
     bool play();
     bool pause();
+    /// Pauses and blocks until the data callback can no longer run (needed before seeking).
+    void pauseAndWait();
+    /// Only valid while the stream is not running. Rebases the position and clears 'finished'.
+    void setPositionMs(int64_t ms);
 
     bool isPlaying() const { return playing_.load(); }
     bool finished() const { return finished_.load(); }
