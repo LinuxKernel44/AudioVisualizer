@@ -34,3 +34,11 @@ with a read-only token the user enters in Settings (stored encrypted via Android
 ## Milestones
 M0 scaffolding · M1 vertical slice · M2 full analysis · M3 ML + director · M4 scenes/effects ·
 M5 export · M6 polish and release.
+
+## M1 status (vertical slice)
+Implemented: SAF import -> `Decoder` (MediaCodec, streaming ring) -> `Player` (AAudio, lock-free
+callback, mono tap) -> `SpectrumWorker` (PFFFT, 2048-pt Hann, 64 log bars, attack/release) ->
+`TripleBuffer<VisualState>` -> `VulkanRenderer` (FIFO swapchain, fullscreen-triangle bar shader).
+Known limitations, tracked for later milestones: no seek yet, stereo-only downmix of >2 channels,
+low-frequency bars share FFT bins at 2048 points (needs a longer window for the bass), no
+pre-rotation (compositor rotates), and the render thread is not yet ADPF-hinted.
