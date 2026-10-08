@@ -50,6 +50,12 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     private val vm: PlayerViewModel by viewModels()
 
+    override fun onStop() {
+        super.onStop()
+        // A visualizer has nothing to show in the background; exports keep running in their service.
+        if (!ExportController.running) vm.pausePlayback()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)

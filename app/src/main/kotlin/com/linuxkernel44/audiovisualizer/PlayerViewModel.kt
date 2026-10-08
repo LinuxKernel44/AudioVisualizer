@@ -291,8 +291,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 fillTitleFromMetadata(uri)
                 durationMs = engine.durationMs()
                 positionMs = 0
-                engine.play()
-                playing = true
+                startPlayback()
+                playing = engine.isPlaying()
             } else {
                 error = err
             }
@@ -308,10 +308,24 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val guard = PlaybackGuard(app) { pausePlayback() }
+
+    /** Pauses playback (focus loss, headphones unplugged, app in the background). */
+    fun pausePlayback() {
+        if (trackName == null) return
+        engine.pause()
+        guard.release()
+        refresh()
+    }
+
+    private fun startPlayback() {
+        if (guard.acquire()) engine.play()
+        refresh()
+    }
+
     fun togglePlay() {
         if (trackName == null) return
-        if (engine.isPlaying()) engine.pause() else engine.play()
-        refresh()
+        if (engine.isPlaying()) pausePlayback() else startPlayback()
     }
 
     /** Polled from the UI at a low rate; cheap JNI getters only. */
@@ -337,6 +351,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        guard.release()
         worker.shutdownNow()
         engine.release()
     }

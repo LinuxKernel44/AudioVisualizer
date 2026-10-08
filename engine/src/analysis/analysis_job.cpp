@@ -119,12 +119,21 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
     opts.threads = std::max<size_t>(2, hc > 3 ? hc - 2 : hc);  // leave cores for audio + render
     opts.expectedDurationSec = static_cast<double>(dec.durationUs()) / 1e6;
     opts.cancel = cancel;
-    opts.progress = progress;
+    // With the beat model the DSP pass covers the first 60 % of the progress bar, the model the
+    // rest.
+    opts.progress = [&](float f) {
+        if (progress) progress(useMl ? f * 0.6f : f);
+    };
     if (useMl) {
         opts.refineRhythm = [&](Timeline& tl) {
             BeatTimes bt;
             std::string merr;
-            if (!runBeatModelPass(fd, modelPath, cancel, nullptr, &bt, &merr)) {
+            if (!runBeatModelPass(
+                    fd, modelPath, cancel,
+                    [&](float p) {
+                        if (progress) progress(0.6f + 0.39f * p);
+                    },
+                    &bt, &merr)) {
                 LOGE("beat model unavailable, keeping the DSP rhythm: %s", merr.c_str());
                 return;
             }
