@@ -18,7 +18,7 @@ set_target_properties(pffft PROPERTIES C_STANDARD 11)
 add_library(avcore STATIC src/core/version.cpp src/dsp/spectrum.cpp src/dsp/bar_spectrum.cpp src/dsp/spectrum_worker.cpp src/dsp/stft.cpp
     src/analysis/pcm_source.cpp src/analysis/timeline.cpp src/analysis/loudness.cpp
     src/analysis/features.cpp src/analysis/rhythm.cpp src/analysis/sections.cpp
-    src/analysis/analyzer.cpp)
+    src/analysis/analyzer.cpp src/analysis/summary.cpp src/sim/timeline_sampler.cpp)
 target_include_directories(avcore PUBLIC include)
 target_link_libraries(avcore PUBLIC pffft)
 target_compile_options(avcore PRIVATE -Wall -Wextra -Wpedantic)
@@ -50,6 +50,7 @@ if(ANDROID)
         src/core/engine.cpp
         src/audio/decoder.cpp
         src/audio/player.cpp
+        src/analysis/analysis_job.cpp
         src/render/vulkan_renderer.cpp)
     add_dependencies(avengine avshaders)
     target_include_directories(avengine PRIVATE ${GEN_DIR})
@@ -67,7 +68,7 @@ if(AV_BUILD_TESTS)
     FetchContent_Declare(googletest
         URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.tar.gz)
     FetchContent_MakeAvailable(googletest)
-    add_executable(av_tests tests/version_test.cpp tests/ring_test.cpp tests/spectrum_test.cpp tests/bar_spectrum_test.cpp tests/loudness_test.cpp tests/analysis_test.cpp)
+    add_executable(av_tests tests/version_test.cpp tests/ring_test.cpp tests/spectrum_test.cpp tests/bar_spectrum_test.cpp tests/loudness_test.cpp tests/analysis_test.cpp tests/timeline_sampler_test.cpp)
     target_link_libraries(av_tests PRIVATE avcore GTest::gtest_main Threads::Threads)
     include(GoogleTest)
     gtest_discover_tests(av_tests)

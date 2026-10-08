@@ -16,6 +16,12 @@ class NativeEngine {
     fun isFinished(): Boolean = isFinished(handle)
     fun frameMs(): Float = frameMs(handle)
     fun setSurface(surface: Surface?) = setSurface(handle, surface)
+    fun setCacheDir(dir: String) = setCacheDir(handle, dir)
+    fun analysisState(): Int = analysisState(handle)
+    fun analysisProgress(): Float = analysisProgress(handle)
+    fun analysisFromCache(): Boolean = analysisFromCache(handle)
+    fun analysisError(): String = analysisError(handle)
+    fun summaryJson(): String = summaryJson(handle)
 
     fun release() {
         if (handle != 0L) {
@@ -36,6 +42,12 @@ class NativeEngine {
     private external fun isFinished(h: Long): Boolean
     private external fun frameMs(h: Long): Float
     private external fun setSurface(h: Long, surface: Surface?)
+    private external fun setCacheDir(h: Long, dir: String)
+    private external fun analysisState(h: Long): Int
+    private external fun analysisProgress(h: Long): Float
+    private external fun analysisFromCache(h: Long): Boolean
+    private external fun analysisError(h: Long): String
+    private external fun summaryJson(h: Long): String
 
     companion object {
         init {

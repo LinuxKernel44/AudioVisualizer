@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "av/analysis/summary.h"
+
 namespace av {
 
 Engine::Engine() { renderer_.start(); }
@@ -11,7 +13,14 @@ Engine::~Engine() {
     unload();
 }
 
+std::string Engine::summaryJson() const {
+    if (analysis_.state() != AnalysisJob::State::Done) return {};
+    const auto t = analysis_.timeline();
+    return t ? timelineSummaryJson(*t) : std::string();
+}
+
 void Engine::unload() {
+    analysis_.cancel();
     if (worker_) worker_->stop();
     worker_.reset();
     player_.reset();  // closes the AAudio stream before the decoder ring disappears
@@ -30,7 +39,11 @@ bool Engine::load(int fd, std::string* error) {
     }
     decoder_ = std::move(decoder);
     player_ = std::move(player);
-    worker_ = std::make_unique<SpectrumWorker>(tap_, state_, decoder_->sampleRate());
+    analysis_.start(fd, cacheDir_);
+    SpectrumWorker::Playback pb;
+    pb.positionSec = [this] { return static_cast<double>(player_->positionMs()) / 1000.0; };
+    pb.playing = [this] { return player_->isPlaying(); };
+    worker_ = std::make_unique<SpectrumWorker>(tap_, state_, decoder_->sampleRate(), pb, &analysis_);
     worker_->start();
     return true;
 }

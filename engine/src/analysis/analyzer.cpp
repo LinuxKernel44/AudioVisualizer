@@ -110,6 +110,11 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         if (opts.progress && opts.expectedDurationSec > 0)
             opts.progress(static_cast<float>(std::min(0.95, static_cast<double>(totalSamples) / sr / opts.expectedDurationSec)));
     }
+    if (opts.cancel && opts.cancel->load()) {  // the source may have stopped because of the cancel
+        pool.waitIdle();
+        if (error) *error = "cancelled";
+        return false;
+    }
     loud.finish();
     if (totalSamples == 0) {
         if (error) *error = "no audio";
