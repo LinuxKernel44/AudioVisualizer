@@ -49,12 +49,18 @@ void SpectrumWorker::run() {
     auto lastData = std::chrono::steady_clock::now();
 
     std::unique_ptr<TimelineSampler> sampler;
+    Director director;
     auto lastPoll = std::chrono::steady_clock::now();
+    auto lastPublish = lastPoll;
+    int appliedManual = -2;
     auto publish = [&] {
         if (!sampler && job_ && std::chrono::steady_clock::now() - lastPoll > std::chrono::milliseconds(100)) {
             lastPoll = std::chrono::steady_clock::now();
             if (job_->state() == AnalysisJob::State::Done) {
-                if (auto t = job_->timeline()) sampler = std::make_unique<TimelineSampler>(std::move(t));
+                if (auto t = job_->timeline()) {
+                    director.setTimeline(t);
+                    sampler = std::make_unique<TimelineSampler>(std::move(t));
+                }
             }
         }
         VisualState& s = out_.writeSlot();
@@ -72,6 +78,28 @@ void SpectrumWorker::run() {
             s.beatPulse = s.kick = s.beatPhase = s.sectionEnergy = s.bpm = 0.f;
             s.barBeat = 0;
         }
+        // Waveform for oscilloscope-style scenes: peak-decimate the newest 2048 samples to 256.
+        {
+            const size_t block = 2048 / VisualState::kWaveSamples;
+            const float* w = window.data() + kFftSize - 2048;
+            for (size_t i = 0; i < VisualState::kWaveSamples; ++i) {
+                float peak = 0.f;
+                for (size_t k = 0; k < block; ++k)
+                    if (std::fabs(w[i * block + k]) > std::fabs(peak)) peak = w[i * block + k];
+                s.wave[i] = peak;
+            }
+        }
+        // Scene selection / look from the director (position driven in automatic mode).
+        const auto now = std::chrono::steady_clock::now();
+        const double dt = std::chrono::duration<double>(now - lastPublish).count();
+        lastPublish = now;
+        const int manual = manualScene_.load();
+        if (manual != appliedManual) {
+            director.setManualScene(manual);
+            appliedManual = manual;
+        }
+        const double pos = playback_.positionSec ? playback_.positionSec() : 0.0;
+        director.update(pos, std::min(dt, 0.1), &s);
         out_.publish();
     };
 

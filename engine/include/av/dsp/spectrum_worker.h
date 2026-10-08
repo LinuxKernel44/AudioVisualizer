@@ -9,6 +9,7 @@
 #include "av/core/triple_buffer.h"
 #include "av/analysis/analysis_job.h"
 #include "av/core/visual_state.h"
+#include "av/sim/director.h"
 #include "av/sim/timeline_sampler.h"
 
 namespace av {
@@ -27,6 +28,8 @@ public:
     ~SpectrumWorker();
     void start();
     void stop();
+    /// -1 = automatic (follow the musical structure), otherwise a scene index.
+    void setManualScene(int index) { manualScene_.store(index); }
 
 private:
     void run();
@@ -37,6 +40,7 @@ private:
     Playback playback_;
     const AnalysisJob* job_;
     std::atomic<bool> stop_{false};
+    std::atomic<int> manualScene_{-1};
     std::thread thread_;
 };
 

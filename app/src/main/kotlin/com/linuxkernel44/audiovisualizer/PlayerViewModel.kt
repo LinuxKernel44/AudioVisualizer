@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import java.util.concurrent.Executors
 
+val SCENE_NAMES = listOf("Bars", "Radial", "Tunnel", "Fractal")
+
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val engine = NativeEngine()
     private val worker = Executors.newSingleThreadExecutor()
@@ -33,6 +35,20 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var summary by mutableStateOf<AnalysisSummary?>(null)
         private set
+    /** -1 = automatic (the director follows the song structure), otherwise a scene index. */
+    var scene by mutableStateOf(-1)
+        private set
+
+    fun selectScene(index: Int) {
+        scene = index
+        engine.setScene(index)
+    }
+
+    fun cycleScene(delta: Int) {
+        val n = SCENE_NAMES.size
+        val base = if (scene < 0) 0 else scene
+        selectScene(((base + delta) % n + n) % n)
+    }
 
     init {
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }

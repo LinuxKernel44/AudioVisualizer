@@ -2,6 +2,7 @@
 
 #include <android/native_window.h>
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -30,6 +31,9 @@ public:
     bool pause();
     bool seek(int64_t ms);
     void setSurface(ANativeWindow* window);
+    /// -1 = automatic scene selection, otherwise a scene index.
+    void setScene(int index) { manualScene_.store(index); if (worker_) worker_->setManualScene(index); }
+    int sceneIndex() const { return manualScene_.load(); }
 
     /// Directory for cached analysis results (created by the caller). Empty disables caching.
     void setCacheDir(const std::string& dir) { cacheDir_ = dir; }
@@ -53,6 +57,7 @@ private:
     TripleBuffer<VisualState> state_;  // declared first: outlives worker and renderer
     AnalysisJob analysis_;             // outlives the worker that polls it
     std::string cacheDir_;
+    std::atomic<int> manualScene_{-1};
     SpscRing<float> tap_{1 << 15};
     VulkanRenderer renderer_{state_};
     std::unique_ptr<Decoder> decoder_;

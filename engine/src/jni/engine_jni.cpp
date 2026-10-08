@@ -52,3 +52,6 @@ JNI(jstring, analysisError)(JNIEnv* env, jobject, jlong h) {
 JNI(jstring, summaryJson)(JNIEnv* env, jobject, jlong h) {
     return env->NewStringUTF(from(h)->summaryJson().c_str());
 }
+
+JNI(void, setScene)(JNIEnv*, jobject, jlong h, jint index) { from(h)->setScene(index); }
+JNI(jint, sceneIndex)(JNIEnv*, jobject, jlong h) { return from(h)->sceneIndex(); }

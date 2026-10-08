@@ -452,6 +452,8 @@ void VulkanRenderer::run() {
     bool active = false;
     const auto t0 = std::chrono::steady_clock::now();
     auto lastFrame = t0;
+    int statFrames = 0;
+    double statSum = 0.0;
 
     while (instanceOk) {
         ANativeWindow* incoming = nullptr;
@@ -488,6 +490,14 @@ void VulkanRenderer::run() {
             const float dt = std::chrono::duration<float>(now - lastFrame).count();
             lastFrameMs_ = dt * 1000.f;
             lastFrame = now;
+            statFrames++;
+            statSum += dt;
+            if (statSum >= 3.0) {  // periodic cadence report (average frame interval and fps)
+                LOGI("frame interval %.2f ms (%.1f fps) at render scale %.2f", statSum / statFrames * 1000.0,
+                     statFrames / statSum, static_cast<double>(renderScale_.load()));
+                statFrames = 0;
+                statSum = 0.0;
+            }
             if (!vk.drawFrame(state_.read(), t, std::min(dt, 0.1f), renderScale_.load())) {
                 LOGE("frame failed; waiting for a new surface");
                 active = false;

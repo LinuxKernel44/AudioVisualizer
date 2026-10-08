@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Slider
@@ -35,7 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
@@ -78,6 +82,7 @@ private fun formatTime(ms: Long): String {
     return "%d:%02d".format(s / 60, s % 60)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerScreen(vm: PlayerViewModel) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -98,8 +103,18 @@ private fun PlayerScreen(vm: PlayerViewModel) {
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+        var swipe by remember { mutableStateOf(0f) }
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { swipe = 0f },
+                    onHorizontalDrag = { _, dx -> swipe += dx },
+                    onDragEnd = {
+                        if (swipe < -120f) vm.cycleScene(1) else if (swipe > 120f) vm.cycleScene(-1)
+                        swipe = 0f
+                    },
+                )
+            },
             factory = { ctx ->
                 SurfaceView(ctx).apply {
                     holder.addCallback(object : SurfaceHolder.Callback {
@@ -114,6 +129,15 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                 }
             },
         )
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(top = 36.dp, start = 12.dp, end = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterChip(selected = vm.scene < 0, onClick = { vm.selectScene(-1) }, label = { Text("Auto") })
+            SCENE_NAMES.forEachIndexed { i, n ->
+                FilterChip(selected = vm.scene == i, onClick = { vm.selectScene(i) }, label = { Text(n) })
+            }
+        }
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp),
             verticalArrangement = Arrangement.SpaceBetween,
