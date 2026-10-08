@@ -25,6 +25,7 @@ JNI(jstring, load)(JNIEnv* env, jobject, jlong h, jint fd) {
 
 JNI(jboolean, play)(JNIEnv*, jobject, jlong h) { return from(h)->play(); }
 JNI(jboolean, pause)(JNIEnv*, jobject, jlong h) { return from(h)->pause(); }
+JNI(jboolean, seekTo)(JNIEnv*, jobject, jlong h, jlong ms) { return from(h)->seek(ms); }
 JNI(jlong, positionMs)(JNIEnv*, jobject, jlong h) { return from(h)->positionMs(); }
 JNI(jlong, durationMs)(JNIEnv*, jobject, jlong h) { return from(h)->durationMs(); }
 JNI(jboolean, isPlaying)(JNIEnv*, jobject, jlong h) { return from(h)->isPlaying(); }
@@ -35,4 +36,19 @@ JNI(void, setSurface)(JNIEnv* env, jobject, jlong h, jobject surface) {
     ANativeWindow* w = surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
     from(h)->setSurface(w);  // the renderer takes its own reference
     if (w) ANativeWindow_release(w);
+}
+
+JNI(void, setCacheDir)(JNIEnv* env, jobject, jlong h, jstring dir) {
+    const char* c = env->GetStringUTFChars(dir, nullptr);
+    from(h)->setCacheDir(c);
+    env->ReleaseStringUTFChars(dir, c);
+}
+JNI(jint, analysisState)(JNIEnv*, jobject, jlong h) { return from(h)->analysisState(); }
+JNI(jfloat, analysisProgress)(JNIEnv*, jobject, jlong h) { return from(h)->analysisProgress(); }
+JNI(jboolean, analysisFromCache)(JNIEnv*, jobject, jlong h) { return from(h)->analysisFromCache(); }
+JNI(jstring, analysisError)(JNIEnv* env, jobject, jlong h) {
+    return env->NewStringUTF(from(h)->analysisError().c_str());
+}
+JNI(jstring, summaryJson)(JNIEnv* env, jobject, jlong h) {
+    return env->NewStringUTF(from(h)->summaryJson().c_str());
 }

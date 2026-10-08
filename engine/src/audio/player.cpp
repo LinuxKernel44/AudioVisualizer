@@ -63,6 +63,28 @@ bool Player::pause() {
     return AAudioStream_requestPause(stream_) == AAUDIO_OK;
 }
 
+void Player::pauseAndWait() {
+    if (!stream_) return;
+    playing_ = false;
+    aaudio_stream_state_t s = AAudioStream_getState(stream_);
+    if (s == AAUDIO_STREAM_STATE_STARTED || s == AAUDIO_STREAM_STATE_STARTING)
+        AAudioStream_requestPause(stream_);
+    for (int i = 0; i < 20; ++i) {  // up to ~2 s
+        s = AAudioStream_getState(stream_);
+        if (s == AAUDIO_STREAM_STATE_PAUSED || s == AAUDIO_STREAM_STATE_STOPPED ||
+            s == AAUDIO_STREAM_STATE_OPEN || s == AAUDIO_STREAM_STATE_DISCONNECTED ||
+            s == AAUDIO_STREAM_STATE_CLOSED || s == AAUDIO_STREAM_STATE_UNINITIALIZED)
+            break;
+        aaudio_stream_state_t next = AAUDIO_STREAM_STATE_UNINITIALIZED;
+        AAudioStream_waitForStateChange(stream_, s, &next, 100'000'000);
+    }
+}
+
+void Player::setPositionMs(int64_t ms) {
+    framesPlayed_.store(ms * sampleRate_ / 1000, std::memory_order_relaxed);
+    finished_.store(false);
+}
+
 int64_t Player::positionMs() const {
     return framesPlayed_.load(std::memory_order_relaxed) * 1000 / sampleRate_;
 }

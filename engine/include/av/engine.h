@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include "av/analysis/analysis_job.h"
 #include "av/audio/decoder.h"
 #include "av/audio/player.h"
 #include "av/core/spsc_ring.h"
@@ -27,7 +28,17 @@ public:
     bool load(int fd, std::string* error);
     bool play();
     bool pause();
+    bool seek(int64_t ms);
     void setSurface(ANativeWindow* window);
+
+    /// Directory for cached analysis results (created by the caller). Empty disables caching.
+    void setCacheDir(const std::string& dir) { cacheDir_ = dir; }
+    int analysisState() const { return static_cast<int>(analysis_.state()); }
+    float analysisProgress() const { return analysis_.progress(); }
+    bool analysisFromCache() const { return analysis_.fromCache(); }
+    std::string analysisError() const { return analysis_.error(); }
+    /// JSON summary (see timelineSummaryJson) or empty if the analysis is not finished.
+    std::string summaryJson() const;
 
     bool loaded() const { return decoder_ != nullptr; }
     bool isPlaying() const { return player_ && player_->isPlaying(); }
@@ -40,6 +51,8 @@ private:
     void unload();
 
     TripleBuffer<VisualState> state_;  // declared first: outlives worker and renderer
+    AnalysisJob analysis_;             // outlives the worker that polls it
+    std::string cacheDir_;
     SpscRing<float> tap_{1 << 15};
     VulkanRenderer renderer_{state_};
     std::unique_ptr<Decoder> decoder_;

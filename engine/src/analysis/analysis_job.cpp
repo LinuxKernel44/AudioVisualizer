@@ -1,0 +1,135 @@
+#include "av/analysis/analysis_job.h"
+
+#include <android/log.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <vector>
+
+#include "av/analysis/analyzer.h"
+#include "av/audio/decoder.h"
+#include "av/audio/decoder_pcm_source.h"
+
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "av.analysis", __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "av.analysis", __VA_ARGS__)
+
+namespace av {
+
+uint64_t fingerprintFd(int fd) {
+    struct stat st {};
+    if (fstat(fd, &st) != 0) return 0;
+    uint64_t h = 1469598103934665603ull ^ static_cast<uint64_t>(st.st_size);
+    auto mix = [&](const uint8_t* p, size_t n) {
+        for (size_t i = 0; i < n; ++i) {
+            h ^= p[i];
+            h *= 1099511628211ull;
+        }
+    };
+    constexpr size_t kBlock = 64 * 1024;
+    constexpr int kBlocks = 16;
+    std::vector<uint8_t> buf(kBlock);
+    const off_t size = st.st_size;
+    for (int i = 0; i < kBlocks; ++i) {
+        const off_t off = size > static_cast<off_t>(kBlock) * kBlocks
+                              ? static_cast<off_t>((static_cast<double>(size - static_cast<off_t>(kBlock)) * i) / (kBlocks - 1))
+                              : static_cast<off_t>(i) * static_cast<off_t>(kBlock);
+        if (off >= size) break;
+        const ssize_t n = pread(fd, buf.data(), kBlock, off);
+        if (n > 0) mix(buf.data(), static_cast<size_t>(n));
+    }
+    return h;
+}
+
+void AnalysisJob::start(int fd, const std::string& cacheDir) {
+    cancel();
+    cancel_.store(false);
+    state_.store(State::Running);
+    progress_.store(0.f);
+    fromCache_.store(false);
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        result_.reset();
+        error_.clear();
+    }
+    const int own = dup(fd);
+    thread_ = std::thread([this, own, cacheDir] { run(own, cacheDir); });
+}
+
+void AnalysisJob::run(int fd, std::string cacheDir) {
+    auto fail = [&](const std::string& m) {
+        LOGE("analysis failed: %s", m.c_str());
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            error_ = m;
+        }
+        state_.store(State::Failed);
+        ::close(fd);
+    };
+
+    std::string cachePath;
+    if (!cacheDir.empty()) {
+        char name[64];
+        std::snprintf(name, sizeof name, "/%016llx.avt", static_cast<unsigned long long>(fingerprintFd(fd)));
+        cachePath = cacheDir + name;
+        if (FILE* f = std::fopen(cachePath.c_str(), "rb")) {
+            std::vector<uint8_t> bytes;
+            uint8_t tmp[65536];
+            size_t n;
+            while ((n = std::fread(tmp, 1, sizeof tmp, f)) > 0) bytes.insert(bytes.end(), tmp, tmp + n);
+            std::fclose(f);
+            auto t = std::make_shared<Timeline>();
+            std::string err;
+            if (deserialize(bytes.data(), bytes.size(), t.get(), &err)) {
+                LOGI("cache hit: %s", cachePath.c_str());
+                {
+                    std::lock_guard<std::mutex> lk(mu_);
+                    result_ = std::move(t);
+                }
+                fromCache_.store(true);
+                progress_.store(1.f);
+                state_.store(State::Done);
+                ::close(fd);
+                return;
+            }
+            LOGE("ignoring unreadable cache entry: %s", err.c_str());
+        }
+    }
+
+    Decoder dec;
+    std::string err;
+    if (!dec.open(fd, &err)) return fail(err);
+    DecoderPcmSource src(dec, &cancel_);
+    AnalyzerOptions opts;
+    const unsigned hc = std::max(2u, std::thread::hardware_concurrency());
+    opts.threads = std::max<size_t>(2, hc > 3 ? hc - 2 : hc);  // leave cores for audio + render
+    opts.expectedDurationSec = static_cast<double>(dec.durationUs()) / 1e6;
+    opts.cancel = &cancel_;
+    opts.progress = [this](float p) { progress_.store(p); };
+    auto t = std::make_shared<Timeline>();
+    const auto t0 = std::chrono::steady_clock::now();
+    if (!analyzeAudio(src, opts, t.get(), &err)) return fail(err);
+    LOGI("analysed %.1f s of audio in %.2f s: %.1f BPM, %zu beats, %zu sections", t->durationSec,
+         std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(),
+         static_cast<double>(t->bpm), t->beats.size(), t->sections.size());
+
+    if (!cachePath.empty()) {
+        const std::vector<uint8_t> bytes = serialize(*t);
+        const std::string tmp = cachePath + ".tmp";
+        if (FILE* f = std::fopen(tmp.c_str(), "wb")) {
+            const bool ok = std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
+            std::fclose(f);
+            if (ok) std::rename(tmp.c_str(), cachePath.c_str());
+            else std::remove(tmp.c_str());
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        result_ = std::move(t);
+    }
+    state_.store(State::Done);
+    ::close(fd);
+}
+
+}  // namespace av

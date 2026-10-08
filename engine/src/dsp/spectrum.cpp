@@ -41,6 +41,7 @@ SpectrumAnalyzer::SpectrumAnalyzer(size_t fftSize, double sampleRate, size_t num
     maxHz = std::min(maxHz, sampleRate * 0.5 * 0.98);
     barLo_.resize(numBars_);
     barHi_.resize(numBars_);
+    barCenter_.resize(numBars_);
     const double ratio = std::pow(maxHz / minHz, 1.0 / static_cast<double>(numBars_));
     for (size_t b = 0; b < numBars_; ++b) {
         const double lo = minHz * std::pow(ratio, static_cast<double>(b));
@@ -49,6 +50,8 @@ SpectrumAnalyzer::SpectrumAnalyzer(size_t fftSize, double sampleRate, size_t num
         size_t h = std::max(binForHz(hi), l + 1);  // at least one bin per bar
         barLo_[b] = l;
         barHi_[b] = std::min(h, fftSize / 2);
+        barCenter_[b] = static_cast<float>(std::sqrt(lo * hi) * static_cast<double>(fftSize) /
+                                           sampleRate);
     }
 }
 
@@ -75,7 +78,16 @@ void SpectrumAnalyzer::analyze(const float* mono, float* out) {
     constexpr float kFloorDb = -80.f;
     for (size_t b = 0; b < numBars_; ++b) {
         float peak = 0.f;
-        for (size_t k = barLo_[b]; k < barHi_[b]; ++k) peak = std::max(peak, mag_[k]);
+        if (barHi_[b] - barLo_[b] <= 1) {
+            // Bar narrower than one FFT bin: interpolate between neighbours so adjacent bass
+            // bars still differ instead of sharing one value.
+            const float c = std::clamp(barCenter_[b], 1.f, static_cast<float>(fftSize_ / 2 - 2));
+            const size_t k = static_cast<size_t>(c);
+            const float frac = c - static_cast<float>(k);
+            peak = mag_[k] * (1.f - frac) + mag_[k + 1] * frac;
+        } else {
+            for (size_t k = barLo_[b]; k < barHi_[b]; ++k) peak = std::max(peak, mag_[k]);
+        }
         const float db = 20.f * std::log10(std::max(peak, 1e-6f));
         out[b] = std::clamp((db - kFloorDb) / -kFloorDb, 0.f, 1.f);
     }

@@ -25,10 +25,25 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var durationMs by mutableStateOf(0L)
         private set
+    var analysisRunning by mutableStateOf(false)
+        private set
+    var analysisProgress by mutableStateOf(0f)
+        private set
+    var analysisError by mutableStateOf<String?>(null)
+        private set
+    var summary by mutableStateOf<AnalysisSummary?>(null)
+        private set
+
+    init {
+        val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }
+        engine.setCacheDir(dir.absolutePath)
+    }
 
     fun open(uri: Uri) {
         loading = true
         error = null
+        summary = null
+        analysisError = null
         worker.execute {
             val resolver = getApplication<Application>().contentResolver
             val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -56,6 +71,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun seekTo(ms: Long) {
+        if (trackName == null) return
+        positionMs = ms
+        worker.execute {  // seeking blocks briefly on the decoder; keep it off the UI thread
+            engine.seekTo(ms)
+            refresh()
+        }
+    }
+
     fun togglePlay() {
         if (trackName == null) return
         if (engine.isPlaying()) engine.pause() else engine.play()
@@ -66,6 +90,22 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         playing = engine.isPlaying()
         positionMs = engine.positionMs()
+        if (trackName == null) return
+        when (engine.analysisState()) {
+            1 -> {
+                analysisRunning = true
+                analysisProgress = engine.analysisProgress()
+            }
+            2 -> {
+                analysisRunning = false
+                if (summary == null) summary = AnalysisSummary.parse(engine.summaryJson())
+            }
+            3 -> {
+                analysisRunning = false
+                analysisError = engine.analysisError()
+            }
+            else -> analysisRunning = false
+        }
     }
 
     override fun onCleared() {

@@ -39,6 +39,7 @@ private:
     std::vector<float> window_;
     std::vector<float> mag_;
     std::vector<size_t> barLo_, barHi_;
+    std::vector<float> barCenter_;
 };
 
 }  // namespace av

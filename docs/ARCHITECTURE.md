@@ -42,3 +42,16 @@ callback, mono tap) -> `SpectrumWorker` (PFFFT, 2048-pt Hann, 64 log bars, attac
 Known limitations, tracked for later milestones: no seek yet, stereo-only downmix of >2 channels,
 low-frequency bars share FFT bins at 2048 points (needs a longer window for the bass), no
 pre-rotation (compositor rotates), and the render thread is not yet ADPF-hinted.
+
+## M2 status (offline analysis)
+`engine/src/analysis`: `analyzeAudio()` reads PCM from a `PcmSource`, runs BS.1770 loudness
+sequentially and slices the stream into self-contained chunks (500 frames + 9 frames of context)
+processed by a `ThreadPool`. Results are independent of the thread count (tested).
+Per-frame channels (see `Ch`): rms, centroid, flatness, onset strength (full and low/mid/high),
+HPSS percussive share, stereo correlation/width/pan, momentary LUFS, 7 band energies.
+Global: tempo (+ curve), DP beat tracking, meter (3/4 vs 4/4) and bar phase, onsets, key,
+integrated LUFS / LRA / peak / crest, sections (Foote novelty + clustering + heuristic labels)
+and a per-second energy curve. Serialised as `AVT1` (16-bit quantised channels).
+
+Known limits: tempo octave errors are possible (e.g. 174 BPM resolves to 87); section labels are
+heuristic until the ML stage (M3); time signatures other than 3/4 and 4/4 are not detected.

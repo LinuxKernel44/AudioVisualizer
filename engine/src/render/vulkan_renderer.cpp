@@ -33,9 +33,13 @@ namespace av {
 namespace {
 constexpr uint32_t kFramesInFlight = 2;
 
+// Mirrors the std140 block in shaders/bars.frag.
 struct FrameUbo {
     float params[4];  // aspect, time, rms, bar count
     float bars[VisualState::kMaxBars];
+    float beat[4];    // beat pulse, beat phase, bar beat, section energy
+    float misc[4];    // kick, bpm, hasTimeline, unused
+    float bands[8];   // 7 normalised band energies
 };
 }  // namespace
 
@@ -508,6 +512,15 @@ bool VulkanRenderer::Vk::drawFrame(const VisualState& vs, float timeSec) {
     f.mapped->params[2] = vs.rms;
     f.mapped->params[3] = static_cast<float>(std::max<uint32_t>(vs.numBars, 1));
     std::memcpy(f.mapped->bars, vs.bars, sizeof(f.mapped->bars));
+    f.mapped->beat[0] = vs.beatPulse;
+    f.mapped->beat[1] = vs.beatPhase;
+    f.mapped->beat[2] = static_cast<float>(vs.barBeat);
+    f.mapped->beat[3] = vs.sectionEnergy;
+    f.mapped->misc[0] = vs.kick;
+    f.mapped->misc[1] = vs.bpm;
+    f.mapped->misc[2] = vs.hasTimeline ? 1.f : 0.f;
+    f.mapped->misc[3] = 0.f;
+    std::memcpy(f.mapped->bands, vs.bands, sizeof(f.mapped->bands));
 
     vkResetCommandBuffer(f.cmd, 0);
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};

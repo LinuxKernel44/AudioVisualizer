@@ -30,6 +30,12 @@ public:
     bool open(int fd, std::string* error);
     void close();
 
+    /// Seeking protocol (the caller must have stopped the audio callback first):
+    /// beginSeek() makes the decoder thread flush and park; the caller then drops any stale PCM
+    /// from ring(); endSeek() resumes decoding from the new position.
+    bool beginSeek(int64_t targetUs);
+    void endSeek();
+
     int sampleRate() const { return sampleRate_; }
     int64_t durationUs() const { return durationUs_; }
     bool eof() const { return eof_.load(std::memory_order_acquire); }
@@ -46,6 +52,10 @@ private:
     std::thread thread_;
     std::atomic<bool> stop_{false};
     std::atomic<bool> eof_{false};
+    std::atomic<bool> seekPending_{false};
+    int64_t seekTargetUs_ = 0;
+    bool parked_ = false;
+    bool resume_ = false;
 
     std::mutex mu_;
     std::condition_variable cv_;

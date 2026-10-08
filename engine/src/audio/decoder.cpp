@@ -105,6 +105,23 @@ void Decoder::close() {
     }
 }
 
+bool Decoder::beginSeek(int64_t targetUs) {
+    std::unique_lock<std::mutex> lk(mu_);
+    seekTargetUs_ = std::clamp<int64_t>(targetUs, 0, durationUs_ > 0 ? durationUs_ : targetUs);
+    parked_ = false;
+    resume_ = false;
+    seekPending_.store(true, std::memory_order_release);
+    return cv_.wait_for(lk, std::chrono::seconds(2), [this] { return parked_; });
+}
+
+void Decoder::endSeek() {
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        resume_ = true;
+    }
+    cv_.notify_all();
+}
+
 void Decoder::publishFormat(AMediaFormat* fmt) {
     int32_t v = 0;
     std::lock_guard<std::mutex> lk(mu_);
@@ -117,8 +134,35 @@ void Decoder::publishFormat(AMediaFormat* fmt) {
 
 void Decoder::run() {
     bool inputEos = false;
+    bool drained = false;
+    int64_t discardUntilUs = -1;
     std::vector<float> stereo;
     while (!stop_.load(std::memory_order_relaxed)) {
+        if (seekPending_.load(std::memory_order_acquire)) {
+            int64_t target;
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                target = seekTargetUs_;
+            }
+            AMediaExtractor_seekTo(extractor_, target, AMEDIAEXTRACTOR_SEEK_PREVIOUS_SYNC);
+            AMediaCodec_flush(codec_);
+            inputEos = false;
+            drained = false;
+            eof_.store(false, std::memory_order_release);
+            discardUntilUs = target;  // decode from the previous sync point, drop up to target
+            std::unique_lock<std::mutex> lk(mu_);
+            parked_ = true;
+            cv_.notify_all();
+            cv_.wait(lk, [this] { return resume_ || stop_.load(); });
+            parked_ = false;
+            resume_ = false;
+            seekPending_.store(false, std::memory_order_release);
+            continue;
+        }
+        if (drained) {  // end of stream reached: stay alive so the user can seek back
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            continue;
+        }
         if (!inputEos) {
             const ssize_t idx = AMediaCodec_dequeueInputBuffer(codec_, 0);
             if (idx >= 0) {
@@ -155,6 +199,20 @@ void Decoder::run() {
                 size_t frames = 0;
                 size_t bytesPerSample = pcmEncoding_ == kPcmFloat ? 4 : pcmEncoding_ == kPcm8 ? 1 : 2;
                 frames = static_cast<size_t>(info.size) / (bytesPerSample * static_cast<size_t>(ch));
+                size_t skipFrames = 0;
+                if (discardUntilUs >= 0) {
+                    if (info.presentationTimeUs >= discardUntilUs) {
+                        discardUntilUs = -1;
+                    } else {
+                        skipFrames = static_cast<size_t>(
+                            (discardUntilUs - info.presentationTimeUs) * sampleRate_ / 1000000);
+                        if (skipFrames >= frames) {
+                            skipFrames = frames;  // whole buffer precedes the seek target
+                        } else {
+                            discardUntilUs = -1;
+                        }
+                    }
+                }
                 stereo.resize(frames * 2);
                 auto sampleAt = [&](size_t f, int c) -> float {
                     const uint8_t* p = data + (f * static_cast<size_t>(ch) + static_cast<size_t>(c)) * bytesPerSample;
@@ -168,20 +226,24 @@ void Decoder::run() {
                     memcpy(&s, p, 2);
                     return static_cast<float>(s) * (1.f / 32768.f);
                 };
-                for (size_t f = 0; f < frames; ++f) {
+                for (size_t f = skipFrames; f < frames; ++f) {
                     const float l = sampleAt(f, 0);
                     stereo[2 * f] = l;
                     stereo[2 * f + 1] = ch > 1 ? sampleAt(f, 1) : l;
                 }
-                size_t done = 0;
-                while (done < stereo.size() && !stop_.load(std::memory_order_relaxed)) {
+                size_t done = skipFrames * 2;
+                while (done < stereo.size() && !stop_.load(std::memory_order_relaxed) &&
+                       !seekPending_.load(std::memory_order_relaxed)) {
                     const size_t n = ring_.write(stereo.data() + done, stereo.size() - done);
                     done += n;
                     if (n == 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
                 }
             }
             AMediaCodec_releaseOutputBuffer(codec_, static_cast<size_t>(out), false);
-            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) break;
+            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) {
+                drained = true;
+                eof_.store(true, std::memory_order_release);
+            }
         } else if (out == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
             AMediaFormat* f = AMediaCodec_getOutputFormat(codec_);
             publishFormat(f);
@@ -192,10 +254,10 @@ void Decoder::run() {
             std::lock_guard<std::mutex> lk(mu_);
             failed_ = true;
             cv_.notify_all();
-            break;
+            drained = true;
+            eof_.store(true, std::memory_order_release);
         }
     }
-    eof_.store(true, std::memory_order_release);
 }
 
 }  // namespace av
