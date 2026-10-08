@@ -78,6 +78,7 @@ class Engine {
         renderer_.setBrandingOpacity(overlay, background);
     }
     VulkanRenderer::Perf perf() const { return renderer_.perf(); }
+    int audioLatencyMs() const { return player_ ? player_->latencyMs() : 0; }
 
    private:
     void unload();

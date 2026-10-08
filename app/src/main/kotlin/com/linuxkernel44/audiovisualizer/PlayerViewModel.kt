@@ -229,7 +229,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (!showPerf) return
         val p = engine.perf()
         val fps = if (p[0] > 0f) 1000f / p[0] else 0f
-        perfText = "%.0f fps (target %.0f)\nGPU %.1f ms\nscale %.2f\nthermal %d".format(fps, p[3], p[1], p[2], thermalStatus)
+        perfText = "%.0f fps (target %.0f)\nGPU %.1f ms\nscale %.2f\nthermal %d\naudio latency %.0f ms".format(fps, p[3], p[1], p[2], thermalStatus, p[4])
     }
 
     fun updateControls(c: Controls) {

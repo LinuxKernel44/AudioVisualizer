@@ -29,7 +29,11 @@ class Player {
 
     bool isPlaying() const { return playing_.load(); }
     bool finished() const { return finished_.load(); }
+    /// Position of the sound the listener is hearing right now: the frames handed to AAudio minus
+    /// the output latency measured from the stream's hardware timestamps.
     int64_t positionMs() const;
+    /// Measured output latency (frames still in flight between the app and the speaker).
+    int latencyMs() const { return static_cast<int>(latencyFrames_.load() * 1000 / sampleRate_); }
 
    private:
     static aaudio_data_callback_result_t onData(AAudioStream*, void* user, void* audio,
@@ -44,6 +48,8 @@ class Player {
     std::atomic<bool> playing_{false};
     std::atomic<bool> finished_{false};
     std::atomic<int64_t> framesPlayed_{0};
+    mutable std::atomic<int64_t> latencyFrames_{0};
+    mutable std::atomic<int64_t> lastLatencyNs_{0};
 };
 
 }  // namespace av
