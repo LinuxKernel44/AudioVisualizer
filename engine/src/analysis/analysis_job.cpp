@@ -20,8 +20,12 @@
 namespace av {
 
 /// Bump whenever the analysis algorithms change in a way that alters results, so stale cache
-/// entries are ignored. (Rev 3: ML beat gates for regularity and onset alignment.)
-constexpr int kAnalysisRevision = 3;
+/// entries are ignored. (Rev 4: ML beat gates, 15-minute cap on the beat model.)
+constexpr int kAnalysisRevision = 4;
+
+/// The beat model costs roughly a quarter of real time and several hundred MB while it runs on a
+/// mid-range phone, so very long tracks (DJ mixes, audiobooks) keep the classical DSP rhythm.
+constexpr double kMaxMlSeconds = 15.0 * 60.0;
 
 uint64_t fingerprintFd(int fd) {
     struct stat st{};
@@ -119,12 +123,26 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
     opts.threads = std::max<size_t>(2, hc > 3 ? hc - 2 : hc);  // leave cores for audio + render
     opts.expectedDurationSec = static_cast<double>(dec.durationUs()) / 1e6;
     opts.cancel = cancel;
-    opts.progress = progress;
+    // With the beat model the DSP pass covers the first 60 % of the progress bar, the model the
+    // rest.
+    opts.progress = [&](float f) {
+        if (progress) progress(useMl ? f * 0.6f : f);
+    };
     if (useMl) {
         opts.refineRhythm = [&](Timeline& tl) {
+            if (tl.durationSec > kMaxMlSeconds) {
+                LOGI("track is %.0f s long: skipping the beat model, keeping the DSP rhythm",
+                     tl.durationSec);
+                return;
+            }
             BeatTimes bt;
             std::string merr;
-            if (!runBeatModelPass(fd, modelPath, cancel, nullptr, &bt, &merr)) {
+            if (!runBeatModelPass(
+                    fd, modelPath, cancel,
+                    [&](float p) {
+                        if (progress) progress(0.6f + 0.39f * p);
+                    },
+                    &bt, &merr)) {
                 LOGE("beat model unavailable, keeping the DSP rhythm: %s", merr.c_str());
                 return;
             }
@@ -132,6 +150,7 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
                 LOGI("beat model found no usable beats, keeping the DSP rhythm");
         };
     }
+    opts.timingReport = [](const std::string& m) { LOGI("%s", m.c_str()); };
     auto t = std::make_shared<Timeline>();
     const auto t0 = std::chrono::steady_clock::now();
     if (!analyzeAudio(src, opts, t.get(), &err)) {

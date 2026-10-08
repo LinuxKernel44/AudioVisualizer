@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "av.player", __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "av.player", __VA_ARGS__)
@@ -86,7 +87,27 @@ void Player::setPositionMs(int64_t ms) {
 }
 
 int64_t Player::positionMs() const {
-    return framesPlayed_.load(std::memory_order_relaxed) * 1000 / sampleRate_;
+    int64_t frames = framesPlayed_.load(std::memory_order_relaxed);
+    if (stream_ && playing_.load(std::memory_order_relaxed)) {
+        timespec now{};
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        const int64_t nowNs = static_cast<int64_t>(now.tv_sec) * 1'000'000'000LL + now.tv_nsec;
+        if (nowNs - lastLatencyNs_.load(std::memory_order_relaxed) >
+            50'000'000) {  // refresh at 20 Hz
+            lastLatencyNs_.store(nowNs, std::memory_order_relaxed);
+            int64_t hwFrame = 0, hwNs = 0;
+            if (AAudioStream_getTimestamp(stream_, CLOCK_MONOTONIC, &hwFrame, &hwNs) == AAUDIO_OK) {
+                const int64_t written = AAudioStream_getFramesWritten(stream_);
+                const int64_t presented = hwFrame + (nowNs - hwNs) * sampleRate_ / 1'000'000'000LL;
+                const int64_t lat = std::clamp<int64_t>(written - presented, 0, sampleRate_ / 2);
+                const int64_t prev = latencyFrames_.load(std::memory_order_relaxed);
+                latencyFrames_.store(prev == 0 ? lat : prev + (lat - prev) / 4,
+                                     std::memory_order_relaxed);  // smooth
+            }
+        }
+        frames -= latencyFrames_.load(std::memory_order_relaxed);
+    }
+    return std::max<int64_t>(0, frames) * 1000 / sampleRate_;
 }
 
 aaudio_data_callback_result_t Player::onData(AAudioStream*, void* user, void* audio,

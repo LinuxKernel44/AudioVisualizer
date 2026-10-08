@@ -17,6 +17,8 @@ struct AnalyzerOptions {
     /// Optional: called after the classical rhythm stage and before onsets/structure, with the
     /// partially filled Timeline. Lets the ML beat model replace beats, tempo and meter.
     std::function<void(Timeline&)> refineRhythm;
+    /// Optional: receives a one-line breakdown of where the wall time went.
+    std::function<void(const std::string&)> timingReport;
 };
 
 /// Offline analysis pipeline. A producer thread reads PCM, measures loudness sequentially and

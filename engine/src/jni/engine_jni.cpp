@@ -107,9 +107,10 @@ JNI(void, setAutoScale)(JNIEnv*, jobject, jlong h, jboolean on) { from(h)->setAu
 JNI(void, setPowerSaver)(JNIEnv*, jobject, jlong h, jboolean on) { from(h)->setPowerSaver(on); }
 JNI(jfloatArray, perf)(JNIEnv* env, jobject, jlong h) {
     const auto p = from(h)->perf();
-    const jfloat v[4] = {p.frameMs, p.gpuMs, p.scale, p.targetFps};
-    jfloatArray a = env->NewFloatArray(4);
-    env->SetFloatArrayRegion(a, 0, 4, v);
+    const jfloat v[5] = {p.frameMs, p.gpuMs, p.scale, p.targetFps,
+                         static_cast<jfloat>(from(h)->audioLatencyMs())};
+    jfloatArray a = env->NewFloatArray(5);
+    env->SetFloatArrayRegion(a, 0, 5, v);
     return a;
 }
 

@@ -1,8 +1,10 @@
 #include "av/analysis/analyzer.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <cstdio>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -30,6 +32,10 @@ void normaliseP95(std::vector<float>& v) {
 }  // namespace
 
 bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, std::string* error) {
+    using Clock = std::chrono::steady_clock;
+    auto toSec = [](Clock::duration d) { return std::chrono::duration<double>(d).count(); };
+    const auto tStart = Clock::now();
+    Clock::duration tRead{}, tLoud{}, tQueue{}, tBuf{};
     const double sr = src.sampleRate();
     if (sr < 8000 || sr > 192000) {
         if (error) *error = "unsupported sample rate";
@@ -64,9 +70,11 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         }
         (void)finalChunk;
         {
+            const auto q0 = Clock::now();
             std::unique_lock<std::mutex> lk(mu);
             cv.wait(lk, [&] { return inFlight < maxInFlight; });
             ++inFlight;
+            tQueue += Clock::now() - q0;
         }
         pool.submit([&, start, count, L = std::move(L), R = std::move(R)] {
             FeatureExtractor fx(cfg);
@@ -94,13 +102,19 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
             if (error) *error = "cancelled";
             return false;
         }
+        const auto r0 = Clock::now();
         const size_t n = src.read(block.data(), 16384);
+        tRead += Clock::now() - r0;
         if (n == 0) break;
+        const auto l0 = Clock::now();
         loud.process(block.data(), n);
+        tLoud += Clock::now() - l0;
+        const auto b0 = Clock::now();
         for (size_t i = 0; i < n; ++i) {
             bufL.push_back(block[2 * i]);
             bufR.push_back(block[2 * i + 1]);
         }
+        tBuf += Clock::now() - b0;
         totalSamples += n;
         // Submit every chunk whose samples are fully buffered.
         for (;;) {
@@ -130,7 +144,9 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         submit(nextFrame, count, true);
         nextFrame += count;
     }
+    const auto tStreamed = Clock::now();
     pool.waitIdle();
+    const auto tPooled = Clock::now();
 
     // ---- assemble -------------------------------------------------------------------------
     Timeline t;
@@ -250,6 +266,16 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
             t.energyCurve[i] =
                 hi > lo ? std::clamp(static_cast<float>((m - lo) / (hi - lo)), 0.f, 1.f) : 0.5f;
         }
+    }
+    if (opts.timingReport) {
+        char buf[320];
+        std::snprintf(
+            buf, sizeof buf,
+            "analysis timing: total %.2f s | decode wait %.2f | loudness %.2f | sample copy %.2f | "
+            "pool back-pressure %.2f | drain %.2f | global stages %.2f (%zu threads)",
+            toSec(Clock::now() - tStart), toSec(tRead), toSec(tLoud), toSec(tBuf), toSec(tQueue),
+            toSec(tPooled - tStreamed), toSec(Clock::now() - tPooled), threads);
+        opts.timingReport(buf);
     }
     if (opts.progress) opts.progress(1.f);
     *out = std::move(t);

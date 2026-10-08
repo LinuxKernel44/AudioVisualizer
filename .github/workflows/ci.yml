@@ -15,7 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y ninja-build clang-format clang-tidy
+        # Pinned: formatting and diagnostics differ between LLVM releases.
+        run: |
+          sudo apt-get update && sudo apt-get install -y ninja-build
+          pip install clang-format==23.1.1 clang-tidy==22.1.8
       - name: Format check
         run: |
           find engine/src engine/include engine/tests engine/tools \( -name '*.cpp' -o -name '*.h' \) -not -path '*/data/*' \
@@ -27,8 +30,10 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build/host --output-on-failure
       - name: clang-tidy
+        # Only the translation units of the host build (the Android-only files need the NDK headers).
         run: |
-          run-clang-tidy -p build/host -quiet 'engine/(src/(core|dsp|analysis|sim|ml)|tests)/.*\.cpp' 2>&1 | tee tidy.log
+          python3 -c "import json;print('\n'.join(e['file'] for e in json.load(open('build/host/compile_commands.json')) if '/engine/src/' in e['file'] or '/engine/tests/' in e['file'] or '/engine/tools/' in e['file']))" \
+            | xargs -P 4 -n 1 clang-tidy -p build/host --quiet 2>&1 | tee tidy.log
           ! grep -E 'warning:|error:' tidy.log
 
   android:
@@ -40,9 +45,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
       - name: SDK components
-        run: sdkmanager "ndk;28.2.13676358" "cmake;3.31.6" "platforms;android-36" "build-tools;36.0.0"
+        # The runner image ships an Android SDK; accept its licences and add what the build needs.
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" "cmake;3.31.6" "platforms;android-36" "build-tools;36.0.0"
       - name: Build, unit tests, lint
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
       - uses: actions/upload-artifact@v4

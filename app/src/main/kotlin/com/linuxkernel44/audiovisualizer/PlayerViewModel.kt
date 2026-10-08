@@ -214,6 +214,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val recentStore = RecentTracks(app.getSharedPreferences("recent", android.content.Context.MODE_PRIVATE))
+    var recents by mutableStateOf(recentStore.list())
+        private set
+
+    fun forgetRecent(uri: String) {
+        recents = recentStore.remove(uri)
+    }
+
     var showControls by mutableStateOf(false)
     var showPerf by mutableStateOf(false)
     var perfText by mutableStateOf("")
@@ -229,7 +237,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (!showPerf) return
         val p = engine.perf()
         val fps = if (p[0] > 0f) 1000f / p[0] else 0f
-        perfText = "%.0f fps (target %.0f)\nGPU %.1f ms\nscale %.2f\nthermal %d".format(fps, p[3], p[1], p[2], thermalStatus)
+        perfText = "%.0f fps (target %.0f)\nGPU %.1f ms\nscale %.2f\nthermal %d\naudio latency %.0f ms".format(fps, p[3], p[1], p[2], thermalStatus, p[4])
     }
 
     fun updateControls(c: Controls) {
@@ -288,11 +296,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             loading = false
             if (err == null) {
                 trackName = name ?: "Audio"
+                recents = recentStore.add(RecentTrack(uri.toString(), trackName ?: "Audio"))
                 fillTitleFromMetadata(uri)
                 durationMs = engine.durationMs()
                 positionMs = 0
-                engine.play()
-                playing = true
+                startPlayback()
+                playing = engine.isPlaying()
             } else {
                 error = err
             }
@@ -308,10 +317,24 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val guard = PlaybackGuard(app) { pausePlayback() }
+
+    /** Pauses playback (focus loss, headphones unplugged, app in the background). */
+    fun pausePlayback() {
+        if (trackName == null) return
+        engine.pause()
+        guard.release()
+        refresh()
+    }
+
+    private fun startPlayback() {
+        if (guard.acquire()) engine.play()
+        refresh()
+    }
+
     fun togglePlay() {
         if (trackName == null) return
-        if (engine.isPlaying()) engine.pause() else engine.play()
-        refresh()
+        if (engine.isPlaying()) pausePlayback() else startPlayback()
     }
 
     /** Polled from the UI at a low rate; cheap JNI getters only. */
@@ -337,6 +360,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        guard.release()
         worker.shutdownNow()
         engine.release()
     }

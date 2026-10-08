@@ -88,3 +88,13 @@ and weaker PTS control; the current path keeps timestamps explicit and output re
 
 Measured on a Galaxy S10 (Mali-G76): 40 s track -> 720p30 in 7 s (5.7x real time), 1080p60 in 20 s
 (2.0x), 4K30 in 59 s (0.7x). The OnePlus 15 has not been measured yet.
+
+## Decoding throughput (lesson learned)
+`Decoder` feeds as many input buffers as the codec accepts and drains every ready output buffer per
+round trip. A stage-by-stage timing of the analysis (`analysis timing` in logcat) showed that on a
+Galaxy S10 the pipeline was ~96 % *waiting for the decoder*: MediaCodec costs about a millisecond per
+buffer, so one 417-byte MP3 frame per buffer capped decoding at ~10x real time. MP3 frames are
+self-delimiting, so up to 32 are now packed per input buffer (6.5x faster); other codecs need one access
+unit per buffer and are unchanged. Native compute for a 20-minute track is ~2.5 CPU-seconds on a PC.
+The instrumented `FormatTest` checks the decoded duration of every bundled format so that dropped
+frames cannot hide behind this optimisation.

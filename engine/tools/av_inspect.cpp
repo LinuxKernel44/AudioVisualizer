@@ -3,6 +3,8 @@
 //   av_inspect --wav file.wav      -> run the DSP analysis on a WAV file and print the summary
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -30,16 +32,13 @@ int main(int argc, char** argv) {
             return 1;
         }
     } else {
-        FILE* f = std::fopen(argv[1], "rb");
-        if (!f) {
+        std::ifstream in(argv[1], std::ios::binary);
+        if (!in) {
             std::perror("open");
             return 1;
         }
-        std::vector<uint8_t> bytes;
-        uint8_t buf[65536];
-        size_t n;
-        while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) bytes.insert(bytes.end(), buf, buf + n);
-        std::fclose(f);
+        const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)),
+                                         std::istreambuf_iterator<char>());
         if (!av::deserialize(bytes.data(), bytes.size(), &t, &err)) {
             std::fprintf(stderr, "avt: %s\n", err.c_str());
             return 1;

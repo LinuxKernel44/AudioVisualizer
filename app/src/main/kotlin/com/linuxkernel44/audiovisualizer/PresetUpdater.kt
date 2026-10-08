@@ -22,27 +22,32 @@ object PresetUpdater {
     }
 
     /** Blocking; call from a background thread. */
-    fun update(store: PresetStore, token: String?, baseUrl: String = "https://api.github.com"): Result {
+    fun update(store: PresetStore, token: String?, baseUrl: String = "https://api.github.com"): Result =
+        update({ store.saveDownloaded(it) }, token, baseUrl)
+
+    /** Same, with the persistence step injected (`save` validates the JSON and returns the preset count). */
+    fun update(save: (String) -> Int, token: String?, baseUrl: String = "https://api.github.com"): Result {
         if (token.isNullOrBlank()) return Result.Failed("Enter a GitHub token in Settings first.")
         return try {
-            val release = JSONObject(fetch("$baseUrl/repos/$REPO/releases/latest", token, "application/vnd.github+json").decodeToString())
+            val insecureOk = baseUrl.startsWith("http://")  // only ever true for local test servers
+            val release = JSONObject(fetch("$baseUrl/repos/$REPO/releases/latest", token, "application/vnd.github+json", insecureOk).decodeToString())
             val assets = release.optJSONArray("assets") ?: return Result.Failed("The latest release has no assets.")
             var asset: JSONObject? = null
             for (i in 0 until assets.length()) if (assets.getJSONObject(i).optString("name") == ASSET) asset = assets.getJSONObject(i)
             asset ?: return Result.Failed("The latest release has no $ASSET.")
-            val bytes = fetch(asset.getString("url"), token, "application/octet-stream")
+            val bytes = fetch(asset.getString("url"), token, "application/octet-stream", insecureOk)
             val digest = asset.optString("digest", "")
             if (digest.startsWith("sha256:")) {
                 val actual = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
                 if (!actual.equals(digest.removePrefix("sha256:"), ignoreCase = true)) return Result.Failed("The download failed its integrity check.")
             }
-            Result.Updated(store.saveDownloaded(bytes.decodeToString()))
+            Result.Updated(save(bytes.decodeToString()))
         } catch (e: Exception) {
             Result.Failed(e.message ?: "Update failed")
         }
     }
 
-    private fun fetch(url: String, token: String, accept: String, hops: Int = 0): ByteArray {
+    private fun fetch(url: String, token: String, accept: String, insecureOk: Boolean, hops: Int = 0): ByteArray {
         if (hops > 3) throw IllegalStateException("Too many redirects")
         val c = URL(url).openConnection() as HttpURLConnection
         try {
@@ -69,8 +74,8 @@ object PresetUpdater {
                 }
                 301, 302, 303, 307, 308 -> {
                     val loc = c.getHeaderField("Location") ?: throw IllegalStateException("Redirect without a location")
-                    if (!loc.startsWith("https://")) throw IllegalStateException("Refusing a non-HTTPS redirect")
-                    return fetch(loc, token, accept, hops + 1)
+                    if (!loc.startsWith("https://") && !insecureOk) throw IllegalStateException("Refusing a non-HTTPS redirect")
+                    return fetch(loc, token, accept, insecureOk, hops + 1)
                 }
                 401, 403 -> throw IllegalStateException("GitHub rejected the token (HTTP $code).")
                 404 -> throw IllegalStateException("Release or file not found (check the token's access to the repository).")

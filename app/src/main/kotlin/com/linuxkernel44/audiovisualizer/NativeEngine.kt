@@ -22,7 +22,7 @@ class NativeEngine {
     fun setThermalLevel(level: Int) = setThermalLevel(handle, level)
     fun setAutoScale(on: Boolean) = setAutoScale(handle, on)
     fun setPowerSaver(on: Boolean) = setPowerSaver(handle, on)
-    /** [frameMs, gpuMs, renderScale, targetFps] */
+    /** [frameMs, gpuMs, renderScale, targetFps, audioLatencyMs] */
     fun perf(): FloatArray = perf(handle)
     fun setScene(index: Int) = setScene(handle, index)
     fun sceneIndex(): Int = sceneIndex(handle)
