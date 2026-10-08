@@ -34,7 +34,7 @@ bool Decoder::open(int fd, std::string* error) {
     };
     fd_ = dup(fd);
     if (fd_ < 0) return fail("dup failed");
-    struct stat st {};
+    struct stat st{};
     if (fstat(fd_, &st) != 0) return fail("fstat failed");
 
     extractor_ = AMediaExtractor_new();
@@ -187,7 +187,8 @@ void Decoder::run() {
         const ssize_t out = AMediaCodec_dequeueOutputBuffer(codec_, &info, 5000);
         if (out >= 0) {
             size_t sz = 0;
-            const uint8_t* data = AMediaCodec_getOutputBuffer(codec_, static_cast<size_t>(out), &sz);
+            const uint8_t* data =
+                AMediaCodec_getOutputBuffer(codec_, static_cast<size_t>(out), &sz);
             if (data && info.size > 0) {
                 {
                     std::lock_guard<std::mutex> lk(mu_);
@@ -197,8 +198,11 @@ void Decoder::run() {
                 data += info.offset;
                 const int ch = std::max(channels_, 1);
                 size_t frames = 0;
-                size_t bytesPerSample = pcmEncoding_ == kPcmFloat ? 4 : pcmEncoding_ == kPcm8 ? 1 : 2;
-                frames = static_cast<size_t>(info.size) / (bytesPerSample * static_cast<size_t>(ch));
+                size_t bytesPerSample = pcmEncoding_ == kPcmFloat ? 4
+                                        : pcmEncoding_ == kPcm8   ? 1
+                                                                  : 2;
+                frames =
+                    static_cast<size_t>(info.size) / (bytesPerSample * static_cast<size_t>(ch));
                 size_t skipFrames = 0;
                 if (discardUntilUs >= 0) {
                     if (info.presentationTimeUs >= discardUntilUs) {
@@ -215,7 +219,9 @@ void Decoder::run() {
                 }
                 stereo.resize(frames * 2);
                 auto sampleAt = [&](size_t f, int c) -> float {
-                    const uint8_t* p = data + (f * static_cast<size_t>(ch) + static_cast<size_t>(c)) * bytesPerSample;
+                    const uint8_t* p =
+                        data +
+                        (f * static_cast<size_t>(ch) + static_cast<size_t>(c)) * bytesPerSample;
                     if (pcmEncoding_ == kPcmFloat) {
                         float x;
                         memcpy(&x, p, 4);

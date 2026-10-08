@@ -12,8 +12,9 @@ namespace av {
 /// feedback trails, dual-filter bloom and the final composite (tone mapping, chromatic
 /// aberration, glitch, grain, vignette) into the swapchain image.
 class PostChain {
-public:
-    bool create(const vk::Context& ctx, VkShaderModule fullscreenVert, VkDescriptorSetLayout frameLayout);
+   public:
+    bool create(const vk::Context& ctx, VkShaderModule fullscreenVert,
+                VkDescriptorSetLayout frameLayout);
     void destroy();
 
     /// (Re)creates the size-dependent targets. `w`/`h` are the internal render size.
@@ -21,9 +22,9 @@ public:
     /// The composite pass renders into swapchain images of this render pass.
     bool setSwapchainPass(VkRenderPass pass);
 
-    /// Branding layers composed in the final pass: a premultiplied sRGB RGBA overlay (title, logo) and
-    /// an sRGB background image. Pass null to clear. The images are stretched over the whole frame, so
-    /// callers prepare them at the target aspect ratio.
+    /// Branding layers composed in the final pass: a premultiplied sRGB RGBA overlay (title, logo)
+    /// and an sRGB background image. Pass null to clear. The images are stretched over the whole
+    /// frame, so callers prepare them at the target aspect ratio.
     bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h);
     bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h);
 
@@ -37,9 +38,10 @@ public:
     /// Records every pass after the scene(s) were drawn. `useTransition` mixes scene slot 0
     /// (outgoing) and 1 (incoming) first.
     void record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look& look, bool useTransition,
-                float transition, VkFramebuffer swapFb, VkExtent2D swapExtent, VkRenderPass swapPass);
+                float transition, VkFramebuffer swapFb, VkExtent2D swapExtent,
+                VkRenderPass swapPass);
 
-private:
+   private:
     struct Target {
         vk::Image img;
         VkFramebuffer fbScene = VK_NULL_HANDLE;  // compatible with rpScene_/rpPost_/rpAdd_
@@ -49,13 +51,15 @@ private:
                    mix = VK_NULL_HANDLE, feedback = VK_NULL_HANDLE, composite = VK_NULL_HANDLE;
     };
 
-    bool createPass(VkRenderPass* out, VkAttachmentLoadOp load, VkImageLayout initial, VkImageLayout fin);
+    bool createPass(VkRenderPass* out, VkAttachmentLoadOp load, VkImageLayout initial,
+                    VkImageLayout fin);
     bool createTarget(Target* t, uint32_t w, uint32_t h);
     void destroyTarget(Target* t);
     VkDescriptorSet pairSet(VkImageView a, VkImageView b);
     void fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuffer fb, VkExtent2D ext,
-                        VkPipeline pipe, VkDescriptorSet frameSet, VkDescriptorSet tex, const float pc[4],
-                        bool clear = false, VkDescriptorSet extra = VK_NULL_HANDLE);
+                        VkPipeline pipe, VkDescriptorSet frameSet, VkDescriptorSet tex,
+                        const float pc[4], bool clear = false,
+                        VkDescriptorSet extra = VK_NULL_HANDLE);
     bool uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint32_t h);
     void clearTargets();
 

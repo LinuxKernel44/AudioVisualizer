@@ -12,7 +12,7 @@ namespace av {
 /// Band channels are rescaled per track (5th..98th percentile) so quiet and loud material both
 /// use the full 0..1 range.
 class TimelineSampler {
-public:
+   public:
     explicit TimelineSampler(std::shared_ptr<const Timeline> t);
 
     /// Fills the timeline fields of `out` for playback position `sec`.
@@ -20,7 +20,7 @@ public:
 
     const Timeline& timeline() const { return *t_; }
 
-private:
+   private:
     std::shared_ptr<const Timeline> t_;
     std::array<float, kNumBands> lo_{}, hi_{};
 };

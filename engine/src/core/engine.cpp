@@ -43,7 +43,8 @@ bool Engine::load(int fd, std::string* error) {
     SpectrumWorker::Playback pb;
     pb.positionSec = [this] { return static_cast<double>(player_->positionMs()) / 1000.0; };
     pb.playing = [this] { return player_->isPlaying(); };
-    worker_ = std::make_unique<SpectrumWorker>(tap_, state_, decoder_->sampleRate(), pb, &analysis_);
+    worker_ =
+        std::make_unique<SpectrumWorker>(tap_, state_, decoder_->sampleRate(), pb, &analysis_);
     worker_->setManualScene(manualScene_.load());
     {
         std::lock_guard<std::mutex> lk(settingsMu_);

@@ -26,9 +26,8 @@ Stft::Stft(size_t fftSize) : impl_(std::make_unique<Impl>()), n_(fftSize) {
     impl_->work = static_cast<float*>(pffft_aligned_malloc(n_ * sizeof(float)));
     window_.resize(n_);
     for (size_t i = 0; i < n_; ++i)
-        window_[i] = 0.5f - 0.5f * static_cast<float>(
-                                       std::cos(2.0 * M_PI * static_cast<double>(i) /
-                                                static_cast<double>(n_)));
+        window_[i] = 0.5f - 0.5f * static_cast<float>(std::cos(2.0 * M_PI * static_cast<double>(i) /
+                                                               static_cast<double>(n_)));
 }
 
 Stft::~Stft() = default;

@@ -11,7 +11,7 @@ namespace av {
 /// Adapts a streaming Decoder to the analysis PcmSource interface (a dedicated Decoder instance
 /// is used, so analysis never competes with playback for the ring buffer).
 class DecoderPcmSource : public PcmSource {
-public:
+   public:
     DecoderPcmSource(Decoder& d, const std::atomic<bool>* cancel) : dec_(d), cancel_(cancel) {}
     double sampleRate() const override { return dec_.sampleRate(); }
     bool cancelled() const override { return cancel_ && cancel_->load(); }
@@ -25,7 +25,7 @@ public:
         }
     }
 
-private:
+   private:
     Decoder& dec_;
     const std::atomic<bool>* cancel_;
 };

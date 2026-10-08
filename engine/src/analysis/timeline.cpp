@@ -7,15 +7,16 @@
 namespace av {
 
 const char* const kChannelNames[kNumChannels] = {
-    "rms",  "centroid", "flatness", "onset", "onsetLow", "onsetMid", "onsetHigh", "percussive",
-    "corr", "width",    "pan",      "lufs",  "band0",    "band1",    "band2",     "band3",
-    "band4", "band5",   "band6"};
+    "rms",        "centroid", "flatness", "onset", "onsetLow", "onsetMid", "onsetHigh",
+    "percussive", "corr",     "width",    "pan",   "lufs",     "band0",    "band1",
+    "band2",      "band3",    "band4",    "band5", "band6"};
 
 const std::array<float, kNumBands + 1> kBandEdgesHz = {20.f,   60.f,   250.f,  500.f,
                                                        2000.f, 4000.f, 6000.f, 16000.f};
 
 const char* sectionLabelName(SectionLabel l) {
-    static const char* n[] = {"intro", "verse", "build", "chorus", "drop", "break", "bridge", "outro"};
+    static const char* n[] = {"intro", "verse", "build",  "chorus",
+                              "drop",  "break", "bridge", "outro"};
     return n[static_cast<size_t>(l)];
 }
 
@@ -44,9 +45,12 @@ Timeline::BeatPos Timeline::beatPosAt(double sec) const {
     p.beatIndex = static_cast<int>(i);
     p.sinceBeatSec = static_cast<float>(sec) - beats[i];
     float len;
-    if (i + 1 < beats.size()) len = beats[i + 1] - beats[i];
-    else if (i > 0) len = beats[i] - beats[i - 1];
-    else len = bpm > 0 ? 60.f / bpm : 0.5f;
+    if (i + 1 < beats.size())
+        len = beats[i + 1] - beats[i];
+    else if (i > 0)
+        len = beats[i] - beats[i - 1];
+    else
+        len = bpm > 0 ? 60.f / bpm : 0.5f;
     p.phase = std::clamp(p.sinceBeatSec / std::max(len, 1e-3f), 0.f, 1.f);
     p.barBeat = i < beatBar.size() ? beatBar[i] : 0;
     return p;
@@ -139,7 +143,8 @@ std::vector<uint8_t> serialize(const Timeline& t) {
         const float scale = hi > lo ? 65535.f / (hi - lo) : 0.f;
         std::vector<uint16_t> q(c.size());
         for (size_t i = 0; i < c.size(); ++i)
-            q[i] = static_cast<uint16_t>(std::lround(std::clamp((c[i] - lo) * scale, 0.f, 65535.f)));
+            q[i] =
+                static_cast<uint16_t>(std::lround(std::clamp((c[i] - lo) * scale, 0.f, 65535.f)));
         w.putVec(q);
     }
     w.put(t.bpm);

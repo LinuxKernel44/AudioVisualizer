@@ -17,7 +17,8 @@ TimelineSampler::TimelineSampler(std::shared_ptr<const Timeline> t) : t_(std::mo
         std::vector<float> s(c);
         std::sort(s.begin(), s.end());
         lo_[b] = s[static_cast<size_t>(0.05 * static_cast<double>(s.size() - 1))];
-        hi_[b] = std::max(s[static_cast<size_t>(0.98 * static_cast<double>(s.size() - 1))], lo_[b] + 1e-3f);
+        hi_[b] = std::max(s[static_cast<size_t>(0.98 * static_cast<double>(s.size() - 1))],
+                          lo_[b] + 1e-3f);
     }
 }
 

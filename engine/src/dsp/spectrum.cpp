@@ -50,8 +50,8 @@ SpectrumAnalyzer::SpectrumAnalyzer(size_t fftSize, double sampleRate, size_t num
         size_t h = std::max(binForHz(hi), l + 1);  // at least one bin per bar
         barLo_[b] = l;
         barHi_[b] = std::min(h, fftSize / 2);
-        barCenter_[b] = static_cast<float>(std::sqrt(lo * hi) * static_cast<double>(fftSize) /
-                                           sampleRate);
+        barCenter_[b] =
+            static_cast<float>(std::sqrt(lo * hi) * static_cast<double>(fftSize) / sampleRate);
     }
 }
 
@@ -67,7 +67,8 @@ void SpectrumAnalyzer::analyze(const float* mono, float* out) {
     pffft_transform_ordered(impl_->setup, impl_->in, impl_->out, impl_->work, PFFFT_FORWARD);
 
     // PFFFT ordered real output: [re0, re(N/2), re1, im1, re2, im2, ...]
-    const float norm = 4.0f / static_cast<float>(fftSize_);  // Hann coherent gain 0.5, x2 for 1-sided
+    const float norm =
+        4.0f / static_cast<float>(fftSize_);  // Hann coherent gain 0.5, x2 for 1-sided
     mag_[0] = std::fabs(impl_->out[0]) * norm * 0.5f;
     for (size_t k = 1; k < fftSize_ / 2; ++k) {
         const float re = impl_->out[2 * k];

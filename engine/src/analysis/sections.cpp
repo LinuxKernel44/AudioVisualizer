@@ -53,7 +53,8 @@ std::vector<float> noveltyCurve(const std::vector<float>& x, size_t dims, size_t
     // Gaussian-tapered checkerboard kernel over offsets -L..L-1 (excluding the diagonal bias).
     std::vector<float> kern(2 * L);
     for (size_t i = 0; i < 2 * L; ++i) {
-        const double a = (static_cast<double>(i) - static_cast<double>(L) + 0.5) / static_cast<double>(L);
+        const double a =
+            (static_cast<double>(i) - static_cast<double>(L) + 0.5) / static_cast<double>(L);
         kern[i] = static_cast<float>(std::exp(-4.0 * a * a));
     }
     for (size_t i = L; i + L <= groups; ++i) {
@@ -84,7 +85,8 @@ std::vector<Section> segmentStructure(const SectionInput& in) {
         out.push_back(s);
         return out;
     };
-    const size_t L = std::max<size_t>(4, static_cast<size_t>(std::lround(6.0 / in.groupSec)));  // 6 s half kernel
+    const size_t L = std::max<size_t>(
+        4, static_cast<size_t>(std::lround(6.0 / in.groupSec)));  // 6 s half kernel
     if (G < 4 * L) return whole();
 
     const std::vector<float> x = normalise(*in.vectors, dims, G);
@@ -132,7 +134,8 @@ std::vector<Section> segmentStructure(const SectionInput& in) {
             }
             t = best;
         }
-        if (t - bounds.back().first >= 6.f && in.durationSec - t >= 6.0) bounds.push_back({t, p.v / std::max(maxNov, 1e-9f)});
+        if (t - bounds.back().first >= 6.f && in.durationSec - t >= 6.0)
+            bounds.push_back({t, p.v / std::max(maxNov, 1e-9f)});
     }
     bounds.push_back({static_cast<float>(in.durationSec), 0.f});
     if (bounds.size() < 3) return whole();
@@ -140,18 +143,23 @@ std::vector<Section> segmentStructure(const SectionInput& in) {
     // Per-section descriptors.
     const size_t S = bounds.size() - 1;
     std::vector<float> loud(G, 0.f);
-    if (in.loudness && in.loudness->size() >= G) loud.assign(in.loudness->begin(), in.loudness->begin() + static_cast<long>(G));
+    if (in.loudness && in.loudness->size() >= G)
+        loud.assign(in.loudness->begin(), in.loudness->begin() + static_cast<long>(G));
     std::vector<float> sortedLoud(loud);
     std::sort(sortedLoud.begin(), sortedLoud.end());
     const float lo = sortedLoud[static_cast<size_t>(0.10 * static_cast<double>(G - 1))];
     const float hi = sortedLoud[static_cast<size_t>(0.95 * static_cast<double>(G - 1))];
-    auto norm = [&](float l) { return hi > lo ? std::clamp((l - lo) / (hi - lo), 0.f, 1.f) : 0.5f; };
+    auto norm = [&](float l) {
+        return hi > lo ? std::clamp((l - lo) / (hi - lo), 0.f, 1.f) : 0.5f;
+    };
 
     std::vector<std::vector<float>> mean(S, std::vector<float>(dims, 0.f));
     std::vector<float> energy(S, 0.f), slope(S, 0.f);
     for (size_t s = 0; s < S; ++s) {
-        const size_t g0 = std::min(G - 1, static_cast<size_t>(static_cast<double>(bounds[s].first) / in.groupSec));
-        const size_t g1 = std::clamp(static_cast<size_t>(static_cast<double>(bounds[s + 1].first) / in.groupSec), g0 + 1, G);
+        const size_t g0 = std::min(
+            G - 1, static_cast<size_t>(static_cast<double>(bounds[s].first) / in.groupSec));
+        const size_t g1 = std::clamp(
+            static_cast<size_t>(static_cast<double>(bounds[s + 1].first) / in.groupSec), g0 + 1, G);
         double e = 0;
         for (size_t g = g0; g < g1; ++g) {
             for (size_t d = 0; d < dims; ++d) mean[s][d] += x[g * dims + d];
@@ -165,7 +173,9 @@ std::vector<Section> segmentStructure(const SectionInput& in) {
         double a = 0, b = 0;
         for (size_t g = g0; g < mid; ++g) a += norm(loud[g]);
         for (size_t g = mid; g < g1; ++g) b += norm(loud[g]);
-        if (mid > g0 && g1 > mid) slope[s] = static_cast<float>(b / static_cast<double>(g1 - mid) - a / static_cast<double>(mid - g0));
+        if (mid > g0 && g1 > mid)
+            slope[s] = static_cast<float>(b / static_cast<double>(g1 - mid) -
+                                          a / static_cast<double>(mid - g0));
     }
 
     // Greedy clustering by cosine similarity of section means.
@@ -208,12 +218,16 @@ std::vector<Section> segmentStructure(const SectionInput& in) {
         const float prevE = s > 0 ? energy[s - 1] : energy[s];
         const float nextE = s + 1 < S ? energy[s + 1] : energy[s];
         SectionLabel l = SectionLabel::Verse;
-        if (s == 0 && energy[s] <= medE + 0.05f) l = SectionLabel::Intro;
-        else if (s + 1 == S && energy[s] < prevE) l = SectionLabel::Outro;
+        if (s == 0 && energy[s] <= medE + 0.05f)
+            l = SectionLabel::Intro;
+        else if (s + 1 == S && energy[s] < prevE)
+            l = SectionLabel::Outro;
         else if (energy[s] >= std::max(0.65f, medE + 0.1f)) {
             l = (energy[s] - prevE > 0.25f) ? SectionLabel::Drop : SectionLabel::Chorus;
-        } else if (slope[s] > 0.2f && nextE > energy[s] + 0.1f) l = SectionLabel::Build;
-        else if (energy[s] < 0.4f && prevE > energy[s] + 0.2f) l = SectionLabel::Break;
+        } else if (slope[s] > 0.2f && nextE > energy[s] + 0.1f)
+            l = SectionLabel::Build;
+        else if (energy[s] < 0.4f && prevE > energy[s] + 0.2f)
+            l = SectionLabel::Break;
         sec.label = l;
     }
     // A mid-track section whose cluster appears only once, with medium energy, reads as a bridge.

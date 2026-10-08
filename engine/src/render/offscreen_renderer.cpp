@@ -30,7 +30,9 @@ bool OffscreenRenderer::create(uint32_t width, uint32_t height, float internalSc
     if (!ctx_.createInstance() || !ctx_.createDevice()) return false;
     if (!core_.create(&ctx_)) return false;
     const auto even = [](float v) { return std::max(2u, static_cast<uint32_t>(v) & ~1u); };
-    if (!core_.resize(even(static_cast<float>(w_) * internalScale), even(static_cast<float>(h_) * internalScale))) return false;
+    if (!core_.resize(even(static_cast<float>(w_) * internalScale),
+                      even(static_cast<float>(h_) * internalScale)))
+        return false;
 
     // Final pass: RGBA8, left in SHADER_READ_ONLY so the compute shader can sample it.
     VkAttachmentDescription att{};
@@ -50,7 +52,8 @@ bool OffscreenRenderer::create(uint32_t width, uint32_t height, float internalSc
     VkSubpassDependency deps[2]{};
     deps[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     deps[0].dstSubpass = 0;
-    deps[0].srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+    deps[0].srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     deps[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     deps[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -98,9 +101,16 @@ bool OffscreenRenderer::create(uint32_t width, uint32_t height, float internalSc
     VkShaderModule cs = vk::createShader(ctx_, shaders::nv12_comp, shaders::nv12_compSize);
     if (!cs) return false;
     VkComputePipelineCreateInfo cp{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
-    cp.stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_COMPUTE_BIT, cs, "main", nullptr};
+    cp.stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                nullptr,
+                0,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                cs,
+                "main",
+                nullptr};
     cp.layout = pl_;
-    const VkResult cr = vkCreateComputePipelines(ctx_.dev, VK_NULL_HANDLE, 1, &cp, nullptr, &pipeline_);
+    const VkResult cr =
+        vkCreateComputePipelines(ctx_.dev, VK_NULL_HANDLE, 1, &cp, nullptr, &pipeline_);
     vkDestroyShaderModule(ctx_.dev, cs, nullptr);
     if (cr != VK_SUCCESS) {
         LOGE("compute pipeline failed: %d", cr);
@@ -116,7 +126,9 @@ bool OffscreenRenderer::create(uint32_t width, uint32_t height, float internalSc
 
     for (Slot& s : slots_) {
         if (!vk::createImage2D(ctx_, w_, h_, VK_FORMAT_R8G8B8A8_UNORM,
-                               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &s.final)) return false;
+                               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                               &s.final))
+            return false;
         VkFramebufferCreateInfo fb{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
         fb.renderPass = finalPass_;
         fb.attachmentCount = 1;
@@ -125,8 +137,13 @@ bool OffscreenRenderer::create(uint32_t width, uint32_t height, float internalSc
         fb.height = h_;
         fb.layers = 1;
         VK_TRY(vkCreateFramebuffer(ctx_.dev, &fb, nullptr, &s.fb));
-        if (!vk::createBuffer(ctx_, frameBytes(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, false, &s.storage)) return false;
-        if (!vk::createBuffer(ctx_, frameBytes(), VK_BUFFER_USAGE_TRANSFER_DST_BIT, true, &s.readback, true)) return false;
+        if (!vk::createBuffer(ctx_, frameBytes(),
+                              VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                              false, &s.storage))
+            return false;
+        if (!vk::createBuffer(ctx_, frameBytes(), VK_BUFFER_USAGE_TRANSFER_DST_BIT, true,
+                              &s.readback, true))
+            return false;
         VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
         ai.descriptorPool = pool_;
         ai.descriptorSetCount = 1;
@@ -185,7 +202,8 @@ bool OffscreenRenderer::deliver(Slot& s, const FrameSink& sink) {
     RenderCore::Slot& rs = core_.slot(static_cast<uint32_t>(&s - slots_));
     VK_TRY(vkWaitForFences(ctx_.dev, 1, &rs.fence, VK_TRUE, UINT64_MAX));
     if (!s.readback.coherent) {
-        VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr, s.readback.mem, 0, VK_WHOLE_SIZE};
+        VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr, s.readback.mem, 0,
+                                  VK_WHOLE_SIZE};
         vkInvalidateMappedMemoryRanges(ctx_.dev, 1, &range);
     }
     sink(s.frame, static_cast<const uint8_t*>(s.readback.mapped));
@@ -222,7 +240,8 @@ bool OffscreenRenderer::render(int64_t frameIndex, const VisualState& vs, float 
     toCopy.srcQueueFamilyIndex = toCopy.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     toCopy.buffer = s.storage.buf;
     toCopy.size = VK_WHOLE_SIZE;
-    vkCmdPipelineBarrier(rs.cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &toCopy, 0, nullptr);
+    vkCmdPipelineBarrier(rs.cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &toCopy, 0, nullptr);
     VkBufferCopy region{0, 0, frameBytes()};
     vkCmdCopyBuffer(rs.cmd, s.storage.buf, s.readback.buf, 1, &region);
     VkBufferMemoryBarrier toHost{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
@@ -231,7 +250,8 @@ bool OffscreenRenderer::render(int64_t frameIndex, const VisualState& vs, float 
     toHost.srcQueueFamilyIndex = toHost.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     toHost.buffer = s.readback.buf;
     toHost.size = VK_WHOLE_SIZE;
-    vkCmdPipelineBarrier(rs.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr, 1, &toHost, 0, nullptr);
+    vkCmdPipelineBarrier(rs.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0,
+                         nullptr, 1, &toHost, 0, nullptr);
     vkEndCommandBuffer(rs.cmd);
 
     VkSubmitInfo sub{VK_STRUCTURE_TYPE_SUBMIT_INFO};
@@ -250,7 +270,8 @@ bool OffscreenRenderer::flush(const FrameSink& sink) {
     // Deliver in frame order.
     Slot* order[RenderCore::kSlots];
     for (uint32_t i = 0; i < RenderCore::kSlots; ++i) order[i] = &slots_[i];
-    std::sort(order, order + RenderCore::kSlots, [](Slot* a, Slot* b) { return a->frame < b->frame; });
+    std::sort(order, order + RenderCore::kSlots,
+              [](Slot* a, Slot* b) { return a->frame < b->frame; });
     for (Slot* s : order)
         if (!deliver(*s, sink)) return false;
     return true;

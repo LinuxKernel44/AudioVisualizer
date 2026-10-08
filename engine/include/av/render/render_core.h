@@ -12,9 +12,10 @@ namespace av {
 
 /// Device-level rendering state shared by the on-screen renderer and the offline exporter:
 /// per-frame uniform buffers and command buffers, the HDR PostChain and all scenes. It records
-/// "scene(s) + post chain into a given framebuffer"; presenting or reading back is the caller's job.
+/// "scene(s) + post chain into a given framebuffer"; presenting or reading back is the caller's
+/// job.
 class RenderCore {
-public:
+   public:
     static constexpr uint32_t kSlots = 2;  // frames in flight
 
     struct Slot {
@@ -32,21 +33,29 @@ public:
 
     Slot& slot(uint32_t i) { return slots_[i % kSlots]; }
     /// Fills the frame uniforms and records every scene and post pass into `cmd` (slot `i`'s
-    /// command buffer, already begun). The composite pass renders into `fb` (compatible with `pass`).
+    /// command buffer, already begun). The composite pass renders into `fb` (compatible with
+    /// `pass`).
     void record(uint32_t i, const VisualState& vs, float timeSec, float dt, VkFramebuffer fb,
                 VkExtent2D extent, VkRenderPass pass, float quality = 1.f);
 
     /// Branding layers (see PostChain). Opacities are 0..1.
-    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) { return post_.setOverlay(rgba, w, h); }
-    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) { return post_.setBackground(rgba, w, h); }
-    void setBrandingOpacity(float overlay, float background) { overlayOpacity_ = overlay; backgroundOpacity_ = background; }
+    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) {
+        return post_.setOverlay(rgba, w, h);
+    }
+    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) {
+        return post_.setBackground(rgba, w, h);
+    }
+    void setBrandingOpacity(float overlay, float background) {
+        overlayOpacity_ = overlay;
+        backgroundOpacity_ = background;
+    }
 
     size_t sceneCount() const { return scenes_.size(); }
     const char* sceneName(size_t i) const { return scenes_[i % scenes_.size()]->name(); }
     VkDescriptorSetLayout frameLayout() const { return frameLayout_; }
     VkDescriptorPool descriptorPool() const { return dpool_; }
 
-private:
+   private:
     vk::Context* ctx_ = nullptr;
     VkDescriptorSetLayout frameLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool dpool_ = VK_NULL_HANDLE;

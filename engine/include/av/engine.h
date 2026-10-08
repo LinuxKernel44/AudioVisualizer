@@ -23,7 +23,7 @@ namespace av {
 /// Top-level native object: wires decoder -> player -> analysis worker -> renderer.
 /// All public methods are called from the Android main/worker threads and are not real-time.
 class Engine {
-public:
+   public:
     Engine();
     ~Engine();
 
@@ -34,10 +34,16 @@ public:
     bool seek(int64_t ms);
     void setSurface(ANativeWindow* window);
     /// -1 = automatic scene selection, otherwise a scene index.
-    void setScene(int index) { manualScene_.store(index); if (worker_) worker_->setManualScene(index); }
+    void setScene(int index) {
+        manualScene_.store(index);
+        if (worker_) worker_->setManualScene(index);
+    }
     int sceneIndex() const { return manualScene_.load(); }
     void setSettings(const RenderSettings& s) {
-        { std::lock_guard<std::mutex> lk(settingsMu_); settings_ = s; }
+        {
+            std::lock_guard<std::mutex> lk(settingsMu_);
+            settings_ = s;
+        }
         if (worker_) worker_->setSettings(s);
     }
 
@@ -62,12 +68,18 @@ public:
     void setThermalLevel(int level) { renderer_.setThermalLevel(level); }
     void setAutoScale(bool on) { renderer_.setAutoScale(on); }
     void setPowerSaver(bool on) { renderer_.setPowerSaver(on); }
-    void setOverlayImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) { renderer_.setOverlayImage(std::move(rgba), w, h); }
-    void setBackgroundImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) { renderer_.setBackgroundImage(std::move(rgba), w, h); }
-    void setBrandingOpacity(float overlay, float background) { renderer_.setBrandingOpacity(overlay, background); }
+    void setOverlayImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) {
+        renderer_.setOverlayImage(std::move(rgba), w, h);
+    }
+    void setBackgroundImage(std::vector<uint8_t> rgba, uint32_t w, uint32_t h) {
+        renderer_.setBackgroundImage(std::move(rgba), w, h);
+    }
+    void setBrandingOpacity(float overlay, float background) {
+        renderer_.setBrandingOpacity(overlay, background);
+    }
     VulkanRenderer::Perf perf() const { return renderer_.perf(); }
 
-private:
+   private:
     void unload();
 
     TripleBuffer<VisualState> state_;  // declared first: outlives worker and renderer

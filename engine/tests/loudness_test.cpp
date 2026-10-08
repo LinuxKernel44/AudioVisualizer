@@ -1,16 +1,17 @@
+#include "av/analysis/loudness.h"
+
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <vector>
-
-#include "av/analysis/loudness.h"
 
 namespace {
 std::vector<float> stereoSine(double hz, double sr, double seconds, float amp) {
     const size_t n = static_cast<size_t>(sr * seconds);
     std::vector<float> s(n * 2);
     for (size_t i = 0; i < n; ++i) {
-        const float v = amp * static_cast<float>(std::sin(2.0 * M_PI * hz * static_cast<double>(i) / sr));
+        const float v =
+            amp * static_cast<float>(std::sin(2.0 * M_PI * hz * static_cast<double>(i) / sr));
         s[2 * i] = s[2 * i + 1] = v;
     }
     return s;

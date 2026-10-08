@@ -8,7 +8,7 @@ namespace av {
 /// ITU-R BS.1770-4 K-weighted loudness. Feed stereo PCM sequentially; block energies are
 /// accumulated per hop so momentary / short-term / integrated values can be derived afterwards.
 class LoudnessMeter {
-public:
+   public:
     LoudnessMeter(double sampleRate, size_t hop);
 
     /// Processes stereo frames. Frame f's block covers samples [f*hop - hop/2, f*hop + hop/2).
@@ -29,7 +29,7 @@ public:
     /// Peak sample magnitude (dBFS, not oversampled).
     float samplePeakDb() const;
 
-private:
+   private:
     struct Biquad {
         double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
         double z1 = 0, z2 = 0;

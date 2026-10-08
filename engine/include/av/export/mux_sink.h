@@ -13,7 +13,7 @@ namespace av {
 /// Thread-safe MP4 muxer wrapper. Tracks are added as the encoders report their output formats;
 /// the muxer starts once all expected tracks exist, and write() blocks until then.
 class MuxSink {
-public:
+   public:
     ~MuxSink() { abort(); }
     /// `fd` must be seekable and opened read/write; it stays owned by the caller.
     bool open(int fd, int expectedTracks);
@@ -27,7 +27,7 @@ public:
     /// Wakes writers and releases the muxer without finalising (error / cancel path).
     void abort();
 
-private:
+   private:
     AMediaMuxer* muxer_ = nullptr;
     int expected_ = 2;
     int added_ = 0;

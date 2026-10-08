@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "av/sim/director.h"
+
+#include <gtest/gtest.h>
 
 namespace {
 
@@ -17,8 +17,10 @@ std::shared_ptr<av::Timeline> makeTimeline() {
         s.cluster = c;
         return s;
     };
-    t->sections = {sec(0, 10, av::SectionLabel::Intro, 0.2f, 0), sec(10, 30, av::SectionLabel::Drop, 0.95f, 1),
-                   sec(30, 40, av::SectionLabel::Break, 0.3f, 2), sec(40, 60, av::SectionLabel::Drop, 0.95f, 1)};
+    t->sections = {sec(0, 10, av::SectionLabel::Intro, 0.2f, 0),
+                   sec(10, 30, av::SectionLabel::Drop, 0.95f, 1),
+                   sec(30, 40, av::SectionLabel::Break, 0.3f, 2),
+                   sec(40, 60, av::SectionLabel::Drop, 0.95f, 1)};
     return t;
 }
 

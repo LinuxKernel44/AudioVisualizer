@@ -10,8 +10,8 @@ namespace av {
 
 struct TempoResult {
     float bpm = 0.f;
-    float confidence = 0.f;       // 0..1, peak prominence of the autocorrelation
-    std::vector<float> curve;     // local BPM every `stepSec`
+    float confidence = 0.f;    // 0..1, peak prominence of the autocorrelation
+    std::vector<float> curve;  // local BPM every `stepSec`
     float stepSec = 2.f;
 };
 

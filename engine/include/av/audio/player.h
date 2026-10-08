@@ -12,7 +12,7 @@ namespace av {
 /// Low-latency AAudio output fed from a decoder ring. The data callback is lock-free and
 /// allocation-free; it also taps a mono mix into a second ring for the analysis worker.
 class Player {
-public:
+   public:
     Player(SpscRing<float>& source, SpscRing<float>& tap, const std::atomic<bool>& sourceEof);
     ~Player();
     Player(const Player&) = delete;
@@ -31,7 +31,7 @@ public:
     bool finished() const { return finished_.load(); }
     int64_t positionMs() const;
 
-private:
+   private:
     static aaudio_data_callback_result_t onData(AAudioStream*, void* user, void* audio,
                                                 int32_t frames);
     static void onError(AAudioStream*, void* user, aaudio_result_t error);

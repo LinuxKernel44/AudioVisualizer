@@ -3,16 +3,36 @@ on:
   push:
     branches: [main]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  host-tests:
+  host:
+    name: Engine host tests, format and static analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build
-      - run: cmake -S engine -B build/host -G Ninja -DAV_BUILD_TESTS=ON
-      - run: cmake --build build/host
-      - run: ctest --test-dir build/host --output-on-failure
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang-format clang-tidy
+      - name: Format check
+        run: |
+          find engine/src engine/include engine/tests engine/tools \( -name '*.cpp' -o -name '*.h' \) -not -path '*/data/*' \
+            | xargs clang-format --dry-run --Werror
+      - name: Configure
+        run: cmake -S engine -B build/host -G Ninja -DAV_BUILD_TESTS=ON -DAV_BUILD_TOOLS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build
+        run: cmake --build build/host
+      - name: Unit tests
+        run: ctest --test-dir build/host --output-on-failure
+      - name: clang-tidy
+        run: |
+          run-clang-tidy -p build/host -quiet 'engine/(src/(core|dsp|analysis|sim|ml)|tests)/.*\.cpp' 2>&1 | tee tidy.log
+          ! grep -E 'warning:|error:' tidy.log
+
   android:
+    name: Android build, JVM tests and lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,5 +41,15 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
-      - run: sdkmanager "ndk;28.2.13676358" "cmake;3.31.6" "platforms;android-36"
-      - run: ./gradlew :app:assembleDebug
+      - name: SDK components
+        run: sdkmanager "ndk;28.2.13676358" "cmake;3.31.6" "platforms;android-36" "build-tools;36.0.0"
+      - name: Build, unit tests, lint
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            app/build/reports
+            app/build/test-results
+          retention-days: 7

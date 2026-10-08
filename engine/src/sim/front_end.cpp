@@ -33,7 +33,9 @@ void FrontEnd::applyBars(const float* raw) {
     const float s = std::clamp(settings_.sensitivity, 0.1f, 8.f);
     for (size_t b = 0; b < numBars_; ++b) {
         const float pos = static_cast<float>(b) / static_cast<float>(numBars_);
-        const float gainDb = pos < 0.33f ? settings_.gainBass : pos < 0.66f ? settings_.gainMid : settings_.gainTreble;
+        const float gainDb = pos < 0.33f   ? settings_.gainBass
+                             : pos < 0.66f ? settings_.gainMid
+                                           : settings_.gainTreble;
         // The raw bars map -80..0 dB onto 0..1, so a dB offset is a shift of gainDb/80.
         raw_[b] = std::clamp((raw[b] + gainDb / 80.f) * s, 0.f, 1.f);
     }
@@ -49,15 +51,18 @@ void FrontEnd::step(double dtSec) {
     const float ka = 1.f - std::exp(-static_cast<float>(dtSec) / attackTau);
     const float kr = std::exp(-static_cast<float>(dtSec) / releaseTau);
     for (size_t b = 0; b < numBars_; ++b) {
-        if (raw_[b] > smooth_[b]) smooth_[b] += (raw_[b] - smooth_[b]) * ka;
-        else smooth_[b] *= kr;
+        if (raw_[b] > smooth_[b])
+            smooth_[b] += (raw_[b] - smooth_[b]) * ka;
+        else
+            smooth_[b] *= kr;
     }
     const float inst = lastHopRms_;
     rms_ += (inst - rms_) * (inst > rms_ ? ka : 1.f - kr);
 }
 
 void FrontEnd::decay(double dtSec) {
-    const float kr = std::exp(-static_cast<float>(dtSec) / (0.03f + 0.22f * std::clamp(settings_.smoothing, 0.f, 1.f)));
+    const float kr = std::exp(-static_cast<float>(dtSec) /
+                              (0.03f + 0.22f * std::clamp(settings_.smoothing, 0.f, 1.f)));
     for (float& v : smooth_) v *= kr;
     rms_ *= kr;
     std::fill(history_.begin(), history_.end(), 0.f);
@@ -99,7 +104,8 @@ void FrontEnd::fill(double pos, double dt, bool playing, VisualState* out) {
     }
 
     director_.update(pos, dt, out);
-    if (settings_.palette >= 0) setLookPalette(&out->look, static_cast<uint32_t>(settings_.palette));
+    if (settings_.palette >= 0)
+        setLookPalette(&out->look, static_cast<uint32_t>(settings_.palette));
     out->look.bloom *= settings_.bloom;
 }
 

@@ -83,7 +83,8 @@ TEST(Downbeats, DetectsWaltzTime) {
 
 TEST(Key, DetectsCMajorAndAMinor) {
     const double sr = 44100.0;
-    auto chord = [&](std::vector<float>& x, size_t from, size_t to, std::initializer_list<double> hz) {
+    auto chord = [&](std::vector<float>& x, size_t from, size_t to,
+                     std::initializer_list<double> hz) {
         for (double f : hz) synth::addTone(x, sr, from, to, f, 0.08f);
     };
     const size_t seg = static_cast<size_t>(4.0 * sr);
@@ -215,7 +216,8 @@ TEST(Timeline, SerializationRoundTrip) {
     EXPECT_FLOAT_EQ(r.bpm, t.bpm);
     for (size_t c = 0; c < av::kNumChannels; ++c) {
         ASSERT_EQ(r.ch[c].size(), t.ch[c].size());
-        for (size_t i = 0; i < t.ch[c].size(); i += 7) EXPECT_NEAR(r.ch[c][i], t.ch[c][i], 2e-3f * (1.f + std::fabs(t.ch[c][i])));
+        for (size_t i = 0; i < t.ch[c].size(); i += 7)
+            EXPECT_NEAR(r.ch[c][i], t.ch[c][i], 2e-3f * (1.f + std::fabs(t.ch[c][i])));
     }
     // Corrupt/truncated input must be rejected, not crash.
     EXPECT_FALSE(av::deserialize(bytes.data(), bytes.size() / 2, &r, &err));

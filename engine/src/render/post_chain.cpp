@@ -30,7 +30,8 @@ namespace av {
 
 namespace {
 constexpr VkImageUsageFlags kTargetUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+                                           VK_IMAGE_USAGE_SAMPLED_BIT |
+                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 }
 
 bool PostChain::createPass(VkRenderPass* out, VkAttachmentLoadOp load, VkImageLayout initial,
@@ -52,10 +53,12 @@ bool PostChain::createPass(VkRenderPass* out, VkAttachmentLoadOp load, VkImageLa
     VkSubpassDependency deps[2]{};
     deps[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     deps[0].dstSubpass = 0;
-    deps[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    deps[0].srcStageMask =
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     deps[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     deps[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    deps[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+    deps[0].dstAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
     deps[1].srcSubpass = 0;
     deps[1].dstSubpass = VK_SUBPASS_EXTERNAL;
     deps[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -73,15 +76,18 @@ bool PostChain::createPass(VkRenderPass* out, VkAttachmentLoadOp load, VkImageLa
     return true;
 }
 
-bool PostChain::create(const vk::Context& ctx, VkShaderModule vs, VkDescriptorSetLayout frameLayout) {
+bool PostChain::create(const vk::Context& ctx, VkShaderModule vs,
+                       VkDescriptorSetLayout frameLayout) {
     ctx_ = &ctx;
     vs_ = vs;
     frameLayout_ = frameLayout;
 
     // HDR format: RGBA16F if it can be blended and filtered, else packed float, else 8-bit.
-    const VkFormatFeatureFlags need = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT |
-                                      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
-    for (VkFormat f : {VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_B10G11R11_UFLOAT_PACK32, VK_FORMAT_R8G8B8A8_UNORM}) {
+    const VkFormatFeatureFlags need =
+        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT |
+        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+    for (VkFormat f : {VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+                       VK_FORMAT_R8G8B8A8_UNORM}) {
         if (ctx.formatSupports(f, need)) {
             hdrFormat_ = f;
             break;
@@ -93,9 +99,15 @@ bool PostChain::create(const vk::Context& ctx, VkShaderModule vs, VkDescriptorSe
     }
     LOGI("HDR format %d", hdrFormat_);
 
-    if (!createPass(&rpScene_, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)) return false;
-    if (!createPass(&rpPost_, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)) return false;
-    if (!createPass(&rpAdd_, VK_ATTACHMENT_LOAD_OP_LOAD, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)) return false;
+    if (!createPass(&rpScene_, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
+        return false;
+    if (!createPass(&rpPost_, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
+        return false;
+    if (!createPass(&rpAdd_, VK_ATTACHMENT_LOAD_OP_LOAD, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
+        return false;
 
     VkSamplerCreateInfo si{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     si.magFilter = si.minFilter = VK_FILTER_LINEAR;
@@ -115,7 +127,8 @@ bool PostChain::create(const vk::Context& ctx, VkShaderModule vs, VkDescriptorSe
     dl.pBindings = b;
     VK_TRY(vkCreateDescriptorSetLayout(ctx.dev, &dl, nullptr, &texLayout_));
 
-    VkDescriptorSetLayout layouts[3] = {frameLayout_, texLayout_, texLayout_};  // set 2: branding layers
+    VkDescriptorSetLayout layouts[3] = {frameLayout_, texLayout_,
+                                        texLayout_};  // set 2: branding layers
     VkPushConstantRange pcr{VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16};
     VkPipelineLayoutCreateInfo pl{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     pl.setLayoutCount = 3;
@@ -131,18 +144,26 @@ bool PostChain::create(const vk::Context& ctx, VkShaderModule vs, VkDescriptorSe
     dp.pPoolSizes = &ps;
     VK_TRY(vkCreateDescriptorPool(ctx.dev, &dp, nullptr, &pool_));
 
-    auto pipe = [&](const uint32_t* code, size_t bytes, VkRenderPass rp, bool additive, VkPipeline* out) {
+    auto pipe = [&](const uint32_t* code, size_t bytes, VkRenderPass rp, bool additive,
+                    VkPipeline* out) {
         VkShaderModule fs = vk::createShader(ctx, code, bytes);
         if (!fs) return false;
         *out = makeFullscreenPipeline(ctx, vs_, fs, rp, layout_, additive);
         vkDestroyShaderModule(ctx.dev, fs, nullptr);
         return *out != VK_NULL_HANDLE;
     };
-    if (!pipe(shaders::post_down0_frag, shaders::post_down0_fragSize, rpPost_, false, &pipes_.down0)) return false;
-    if (!pipe(shaders::post_down_frag, shaders::post_down_fragSize, rpPost_, false, &pipes_.down)) return false;
-    if (!pipe(shaders::post_up_frag, shaders::post_up_fragSize, rpAdd_, true, &pipes_.up)) return false;
-    if (!pipe(shaders::post_mix_frag, shaders::post_mix_fragSize, rpPost_, false, &pipes_.mix)) return false;
-    if (!pipe(shaders::post_feedback_frag, shaders::post_feedback_fragSize, rpPost_, false, &pipes_.feedback)) return false;
+    if (!pipe(shaders::post_down0_frag, shaders::post_down0_fragSize, rpPost_, false,
+              &pipes_.down0))
+        return false;
+    if (!pipe(shaders::post_down_frag, shaders::post_down_fragSize, rpPost_, false, &pipes_.down))
+        return false;
+    if (!pipe(shaders::post_up_frag, shaders::post_up_fragSize, rpAdd_, true, &pipes_.up))
+        return false;
+    if (!pipe(shaders::post_mix_frag, shaders::post_mix_fragSize, rpPost_, false, &pipes_.mix))
+        return false;
+    if (!pipe(shaders::post_feedback_frag, shaders::post_feedback_fragSize, rpPost_, false,
+              &pipes_.feedback))
+        return false;
     const uint8_t clear[4] = {0, 0, 0, 0};  // empty branding layers until the app provides some
     return setOverlay(clear, 1, 1) && setBackground(clear, 1, 1);
 }
@@ -152,10 +173,13 @@ bool PostChain::uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint
     sets_.clear();
     vkResetDescriptorPool(ctx_->dev, pool_, 0);
     vk::destroy(*ctx_, *img);
-    if (!vk::createImage2D(*ctx_, w, h, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, img)) return false;
+    if (!vk::createImage2D(*ctx_, w, h, VK_FORMAT_R8G8B8A8_UNORM,
+                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, img))
+        return false;
     vk::Buffer staging;
     const VkDeviceSize bytes = static_cast<VkDeviceSize>(w) * h * 4;
-    if (!vk::createBuffer(*ctx_, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, true, &staging)) return false;
+    if (!vk::createBuffer(*ctx_, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, true, &staging))
+        return false;
     std::memcpy(staging.mapped, rgba, bytes);
     VkCommandBufferAllocateInfo ai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
     ai.commandPool = ctx_->cmdPool;
@@ -176,16 +200,19 @@ bool PostChain::uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint
     br.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     br.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     br.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &br);
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                         0, nullptr, 0, nullptr, 1, &br);
     VkBufferImageCopy region{};
     region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     region.imageExtent = {w, h, 1};
-    vkCmdCopyBufferToImage(cmd, staging.buf, img->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(cmd, staging.buf, img->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                           &region);
     br.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     br.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     br.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     br.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &br);
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &br);
     vkEndCommandBuffer(cmd);
     VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     si.commandBufferCount = 1;
@@ -204,7 +231,8 @@ bool PostChain::setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) {
 
 bool PostChain::setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) {
     static const uint8_t clear[4] = {0, 0, 0, 0};
-    return rgba && w && h ? uploadRgba(&background_, rgba, w, h) : uploadRgba(&background_, clear, 1, 1);
+    return rgba && w && h ? uploadRgba(&background_, rgba, w, h)
+                          : uploadRgba(&background_, clear, 1, 1);
 }
 
 bool PostChain::setSwapchainPass(VkRenderPass pass) {
@@ -212,7 +240,8 @@ bool PostChain::setSwapchainPass(VkRenderPass pass) {
     if (pipes_.composite) vkDestroyPipeline(ctx_->dev, pipes_.composite, nullptr);
     pipes_.composite = VK_NULL_HANDLE;
     swapPass_ = pass;
-    VkShaderModule fs = vk::createShader(*ctx_, shaders::post_composite_frag, shaders::post_composite_fragSize);
+    VkShaderModule fs =
+        vk::createShader(*ctx_, shaders::post_composite_frag, shaders::post_composite_fragSize);
     if (!fs) return false;
     pipes_.composite = makeFullscreenPipeline(*ctx_, vs_, fs, pass, layout_, false);
     vkDestroyShaderModule(ctx_->dev, fs, nullptr);
@@ -248,11 +277,14 @@ bool PostChain::resize(uint32_t w, uint32_t h) {
     sets_.clear();
     w_ = std::max(w, 1u);
     h_ = std::max(h, 1u);
-    for (auto& t : scene_) if (!createTarget(&t, w_, h_)) return false;
+    for (auto& t : scene_)
+        if (!createTarget(&t, w_, h_)) return false;
     if (!createTarget(&mix_, w_, h_)) return false;
-    for (auto& t : fb_) if (!createTarget(&t, w_, h_)) return false;
+    for (auto& t : fb_)
+        if (!createTarget(&t, w_, h_)) return false;
     for (int i = 0; i < kBloomLevels; ++i)
-        if (!createTarget(&bloom_[i], std::max(1u, w_ >> (i + 1)), std::max(1u, h_ >> (i + 1)))) return false;
+        if (!createTarget(&bloom_[i], std::max(1u, w_ >> (i + 1)), std::max(1u, h_ >> (i + 1))))
+            return false;
     clearTargets();
     return true;
 }
@@ -279,7 +311,8 @@ void PostChain::clearTargets() {
         br.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         br.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         br.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &br);
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &br);
         VkClearColorValue zero{};
         VkImageSubresourceRange rng{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
         vkCmdClearColorImage(cmd, t->img.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &zero, 1, &rng);
@@ -287,7 +320,9 @@ void PostChain::clearTargets() {
         br.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         br.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         br.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &br);
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                             &br);
     }
     vkEndCommandBuffer(cmd);
     VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
@@ -307,7 +342,8 @@ void PostChain::destroy() {
     for (auto& t : bloom_) destroyTarget(&t);
     vk::destroy(*ctx_, overlay_);
     vk::destroy(*ctx_, background_);
-    for (VkPipeline p : {pipes_.down0, pipes_.down, pipes_.up, pipes_.mix, pipes_.feedback, pipes_.composite})
+    for (VkPipeline p :
+         {pipes_.down0, pipes_.down, pipes_.up, pipes_.mix, pipes_.feedback, pipes_.composite})
         if (p) vkDestroyPipeline(ctx_->dev, p, nullptr);
     pipes_ = Pipelines{};
     for (VkRenderPass rp : {rpScene_, rpPost_, rpAdd_})
@@ -371,9 +407,10 @@ void PostChain::beginScenePass(VkCommandBuffer cmd, uint32_t slot) {
 
 void PostChain::endScenePass(VkCommandBuffer cmd) { vkCmdEndRenderPass(cmd); }
 
-void PostChain::fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuffer fb, VkExtent2D ext,
-                               VkPipeline pipe, VkDescriptorSet frameSet, VkDescriptorSet tex,
-                               const float pc[4], bool clear, VkDescriptorSet extra) {
+void PostChain::fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuffer fb,
+                               VkExtent2D ext, VkPipeline pipe, VkDescriptorSet frameSet,
+                               VkDescriptorSet tex, const float pc[4], bool clear,
+                               VkDescriptorSet extra) {
     VkClearValue cv{};
     VkRenderPassBeginInfo rb{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     rb.renderPass = rp;
@@ -382,33 +419,38 @@ void PostChain::fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuff
     rb.clearValueCount = clear ? 1 : 0;
     rb.pClearValues = &cv;
     vkCmdBeginRenderPass(cmd, &rb, VK_SUBPASS_CONTENTS_INLINE);
-    VkViewport vp{0.f, 0.f, static_cast<float>(ext.width), static_cast<float>(ext.height), 0.f, 1.f};
+    VkViewport vp{0.f, 0.f, static_cast<float>(ext.width), static_cast<float>(ext.height),
+                  0.f, 1.f};
     VkRect2D sc{{0, 0}, ext};
     vkCmdSetViewport(cmd, 0, 1, &vp);
     vkCmdSetScissor(cmd, 0, 1, &sc);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
     VkDescriptorSet sets[3] = {frameSet, tex, extra};
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, extra ? 3 : 2, sets, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, extra ? 3 : 2, sets,
+                            0, nullptr);
     vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, pc);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
 }
 
-void PostChain::record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look& look, bool useTransition,
-                       float transition, VkFramebuffer swapFb, VkExtent2D swapExtent, VkRenderPass swapPass) {
+void PostChain::record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look& look,
+                       bool useTransition, float transition, VkFramebuffer swapFb,
+                       VkExtent2D swapExtent, VkRenderPass swapPass) {
     setSwapchainPass(swapPass);
     VkImageView src = scene_[0].img.view;
     const VkExtent2D full{w_, h_};
 
     if (useTransition) {
         const float pc[4] = {transition, 0, 0, 0};
-        fullscreenPass(cmd, rpPost_, mix_.fbScene, full, pipes_.mix, frameSet, pairSet(scene_[0].img.view, scene_[1].img.view), pc);
+        fullscreenPass(cmd, rpPost_, mix_.fbScene, full, pipes_.mix, frameSet,
+                       pairSet(scene_[0].img.view, scene_[1].img.view), pc);
         src = mix_.img.view;
     }
     if (look.feedback > 0.001f) {
         const int prev = fbCur_ ^ 1;
         const float pc[4] = {look.feedback, 0, 0, 0};
-        fullscreenPass(cmd, rpPost_, fb_[fbCur_].fbScene, full, pipes_.feedback, frameSet, pairSet(src, fb_[prev].img.view), pc);
+        fullscreenPass(cmd, rpPost_, fb_[fbCur_].fbScene, full, pipes_.feedback, frameSet,
+                       pairSet(src, fb_[prev].img.view), pc);
         src = fb_[fbCur_].img.view;
         fbCur_ = prev;
     }
@@ -416,21 +458,28 @@ void PostChain::record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look
     // Bloom: threshold + 13-tap into level 0, dual-filter chain down, additive upsample back up.
     if (look.bloom > 0.001f) {
         float pc[4] = {1.f / static_cast<float>(w_), 1.f / static_cast<float>(h_), 0.85f, 0.4f};
-        fullscreenPass(cmd, rpPost_, bloom_[0].fbScene, {bloom_[0].img.w, bloom_[0].img.h}, pipes_.down0, frameSet, pairSet(src, src), pc);
+        fullscreenPass(cmd, rpPost_, bloom_[0].fbScene, {bloom_[0].img.w, bloom_[0].img.h},
+                       pipes_.down0, frameSet, pairSet(src, src), pc);
         for (int i = 1; i < kBloomLevels; ++i) {
             const Target& s = bloom_[i - 1];
-            const float p[4] = {1.f / static_cast<float>(s.img.w), 1.f / static_cast<float>(s.img.h), 0, 0};
-            fullscreenPass(cmd, rpPost_, bloom_[i].fbScene, {bloom_[i].img.w, bloom_[i].img.h}, pipes_.down, frameSet, pairSet(s.img.view, s.img.view), p);
+            const float p[4] = {1.f / static_cast<float>(s.img.w),
+                                1.f / static_cast<float>(s.img.h), 0, 0};
+            fullscreenPass(cmd, rpPost_, bloom_[i].fbScene, {bloom_[i].img.w, bloom_[i].img.h},
+                           pipes_.down, frameSet, pairSet(s.img.view, s.img.view), p);
         }
         for (int i = kBloomLevels - 1; i > 0; --i) {
             const Target& s = bloom_[i];
-            const float p[4] = {1.f / static_cast<float>(s.img.w), 1.f / static_cast<float>(s.img.h), 0.6f, 0};
-            fullscreenPass(cmd, rpAdd_, bloom_[i - 1].fbScene, {bloom_[i - 1].img.w, bloom_[i - 1].img.h}, pipes_.up, frameSet, pairSet(s.img.view, s.img.view), p);
+            const float p[4] = {1.f / static_cast<float>(s.img.w),
+                                1.f / static_cast<float>(s.img.h), 0.6f, 0};
+            fullscreenPass(cmd, rpAdd_, bloom_[i - 1].fbScene,
+                           {bloom_[i - 1].img.w, bloom_[i - 1].img.h}, pipes_.up, frameSet,
+                           pairSet(s.img.view, s.img.view), p);
         }
     }
 
     const float pc[4] = {0, 0, 0, 0};
-    fullscreenPass(cmd, swapPass, swapFb, swapExtent, pipes_.composite, frameSet, pairSet(src, bloom_[0].img.view), pc, false,
+    fullscreenPass(cmd, swapPass, swapFb, swapExtent, pipes_.composite, frameSet,
+                   pairSet(src, bloom_[0].img.view), pc, false,
                    pairSet(overlay_.view, background_.view));
 }
 

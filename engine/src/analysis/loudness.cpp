@@ -71,7 +71,8 @@ double toLufs(double meanSquare) { return -0.691 + 10.0 * std::log10(std::max(me
 }  // namespace
 
 std::vector<float> LoudnessMeter::momentary() const {
-    const size_t win = std::max<size_t>(1, static_cast<size_t>(std::lround(0.4 * sr_ / static_cast<double>(hop_))));
+    const size_t win = std::max<size_t>(
+        1, static_cast<size_t>(std::lround(0.4 * sr_ / static_cast<double>(hop_))));
     std::vector<float> out(blocks_.size());
     double sum = 0;
     for (size_t i = 0; i < blocks_.size(); ++i) {
@@ -83,7 +84,8 @@ std::vector<float> LoudnessMeter::momentary() const {
 }
 
 float LoudnessMeter::integrated() const {
-    const size_t win = std::max<size_t>(1, static_cast<size_t>(std::lround(0.4 * sr_ / static_cast<double>(hop_))));
+    const size_t win = std::max<size_t>(
+        1, static_cast<size_t>(std::lround(0.4 * sr_ / static_cast<double>(hop_))));
     const size_t stride = std::max<size_t>(1, win / 4);  // 75% overlap
     std::vector<double> gating;
     if (blocks_.size() < win) return -70.f;
@@ -116,8 +118,10 @@ float LoudnessMeter::integrated() const {
 }
 
 float LoudnessMeter::range() const {
-    const size_t win = std::max<size_t>(1, static_cast<size_t>(std::lround(3.0 * sr_ / static_cast<double>(hop_))));
-    const size_t stride = std::max<size_t>(1, static_cast<size_t>(std::lround(sr_ / static_cast<double>(hop_))));
+    const size_t win = std::max<size_t>(
+        1, static_cast<size_t>(std::lround(3.0 * sr_ / static_cast<double>(hop_))));
+    const size_t stride =
+        std::max<size_t>(1, static_cast<size_t>(std::lround(sr_ / static_cast<double>(hop_))));
     if (blocks_.size() < win) return 0.f;
     std::vector<double> st;
     for (size_t s = 0; s + win <= blocks_.size(); s += stride) {

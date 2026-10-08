@@ -36,7 +36,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         return false;
     }
     const AnalysisConfig cfg = AnalysisConfig::forSampleRate(sr);
-    const size_t threads = opts.threads ? opts.threads : std::max(1u, std::thread::hardware_concurrency());
+    const size_t threads =
+        opts.threads ? opts.threads : std::max(1u, std::thread::hardware_concurrency());
     ThreadPool pool(threads);
     LoudnessMeter loud(sr, cfg.hop);
 
@@ -56,7 +57,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         const SampleRange r = chunkSampleRange(cfg, start, count);
         const size_t len = static_cast<size_t>(r.end - r.begin);
         std::vector<float> L(len, 0.f), R(len, 0.f);
-        for (long long s = std::max(r.begin, base); s < std::min<long long>(r.end, base + static_cast<long long>(bufL.size())); ++s) {
+        for (long long s = std::max(r.begin, base);
+             s < std::min<long long>(r.end, base + static_cast<long long>(bufL.size())); ++s) {
             L[static_cast<size_t>(s - r.begin)] = bufL[static_cast<size_t>(s - base)];
             R[static_cast<size_t>(s - r.begin)] = bufR[static_cast<size_t>(s - base)];
         }
@@ -77,7 +79,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
     };
     auto dropBefore = [&](long long keepFrom) {
         if (keepFrom > base) {
-            const size_t drop = static_cast<size_t>(std::min<long long>(keepFrom - base, static_cast<long long>(bufL.size())));
+            const size_t drop = static_cast<size_t>(
+                std::min<long long>(keepFrom - base, static_cast<long long>(bufL.size())));
             bufL.erase(bufL.begin(), bufL.begin() + static_cast<long>(drop));
             bufR.erase(bufR.begin(), bufR.begin() + static_cast<long>(drop));
             base += static_cast<long long>(drop);
@@ -108,7 +111,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
             dropBefore(chunkSampleRange(cfg, nextFrame, cfg.chunkFrames).begin);
         }
         if (opts.progress && opts.expectedDurationSec > 0)
-            opts.progress(static_cast<float>(std::min(0.95, static_cast<double>(totalSamples) / sr / opts.expectedDurationSec)));
+            opts.progress(static_cast<float>(
+                std::min(0.95, static_cast<double>(totalSamples) / sr / opts.expectedDurationSec)));
     }
     if (opts.cancel && opts.cancel->load()) {  // the source may have stopped because of the cancel
         pool.waitIdle();
@@ -142,7 +146,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
     double sumSq = 0;
     for (auto& kv : results) {
         const ChunkFeatures& c = kv.second;
-        for (size_t i = 0; i < kNumChannels; ++i) t.ch[i].insert(t.ch[i].end(), c.ch[i].begin(), c.ch[i].end());
+        for (size_t i = 0; i < kNumChannels; ++i)
+            t.ch[i].insert(t.ch[i].end(), c.ch[i].begin(), c.ch[i].end());
         groupVecs.insert(groupVecs.end(), c.groupVectors.begin(), c.groupVectors.end());
         for (size_t k = 0; k < 12; ++k) chroma[k] += c.chromaSum[k];
         peakLin = std::max(peakLin, c.peakLin);
@@ -158,7 +163,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
     t.loudnessRange = loud.range();
     t.peakDb = loud.samplePeakDb();
     const double meanSq = sumSq / static_cast<double>(totalSamples);
-    t.crestDb = static_cast<float>(20.0 * std::log10(std::max(peakLin, 1e-6f)) - 10.0 * std::log10(std::max(meanSq, 1e-12)));
+    t.crestDb = static_cast<float>(20.0 * std::log10(std::max(peakLin, 1e-6f)) -
+                                   10.0 * std::log10(std::max(meanSq, 1e-12)));
 
     // Onset channels. Beat tracking follows the low/mid-weighted flux (what people tap to);
     // hats and cymbals contribute less so off-beat hats do not capture the beat phase.
@@ -169,12 +175,14 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         const auto& hi = t.ch[static_cast<size_t>(Ch::OnsetHigh)];
         for (size_t i = 0; i < F; ++i) rawOnset[i] = 1.0f * lo[i] + 0.6f * mi[i] + 0.15f * hi[i];
     }
-    for (Ch c : {Ch::Onset, Ch::OnsetLow, Ch::OnsetMid, Ch::OnsetHigh}) normaliseP95(t.ch[static_cast<size_t>(c)]);
+    for (Ch c : {Ch::Onset, Ch::OnsetLow, Ch::OnsetMid, Ch::OnsetHigh})
+        normaliseP95(t.ch[static_cast<size_t>(c)]);
 
     // Tonality.
     double cs = 0;
     for (double v : chroma) cs += v;
-    for (size_t k = 0; k < 12; ++k) t.chromaMean[k] = cs > 0 ? static_cast<float>(chroma[k] / cs) : 0.f;
+    for (size_t k = 0; k < 12; ++k)
+        t.chromaMean[k] = cs > 0 ? static_cast<float>(chroma[k] / cs) : 0.f;
     const KeyResult kr = estimateKey(t.chromaMean);
     t.key = kr.key;
     t.minor = kr.minor;
@@ -193,9 +201,11 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         const auto& b0 = t.ch[static_cast<size_t>(Ch::Band0)];
         const auto& b1 = t.ch[static_cast<size_t>(Ch::Band1)];
         for (size_t i = 0; i < F; ++i)  // undo the dB mapping of the band channels
-            bassEnergy[i] = std::pow(10.f, (b0[i] * kBandDbSpan + kBandDbFloor) / 10.f) + std::pow(10.f, (b1[i] * kBandDbSpan + kBandDbFloor) / 10.f);
-        const DownbeatResult db = findDownbeats(t.beats, t.frameRate, bassEnergy, t.ch[static_cast<size_t>(Ch::OnsetLow)],
-                                                t.ch[static_cast<size_t>(Ch::Onset)]);
+            bassEnergy[i] = std::pow(10.f, (b0[i] * kBandDbSpan + kBandDbFloor) / 10.f) +
+                            std::pow(10.f, (b1[i] * kBandDbSpan + kBandDbFloor) / 10.f);
+        const DownbeatResult db =
+            findDownbeats(t.beats, t.frameRate, bassEnergy, t.ch[static_cast<size_t>(Ch::OnsetLow)],
+                          t.ch[static_cast<size_t>(Ch::Onset)]);
         t.beatBar = db.barPos;
         t.beatsPerBar = db.beatsPerBar;
         t.downbeatConfidence = db.confidence;
@@ -208,7 +218,8 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
     std::vector<float> groupLoud(G, 0.f);
     for (size_t g = 0; g < G; ++g) {
         double s = 0;
-        for (size_t i = 0; i < cfg.groupFrames; ++i) s += t.ch[static_cast<size_t>(Ch::Loudness)][g * cfg.groupFrames + i];
+        for (size_t i = 0; i < cfg.groupFrames; ++i)
+            s += t.ch[static_cast<size_t>(Ch::Loudness)][g * cfg.groupFrames + i];
         groupLoud[g] = static_cast<float>(s / static_cast<double>(cfg.groupFrames));
     }
     SectionInput si;
@@ -231,11 +242,13 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         const float hi = s[static_cast<size_t>(0.95 * static_cast<double>(s.size() - 1))];
         for (size_t i = 0; i < secs; ++i) {
             const size_t a = static_cast<size_t>(static_cast<double>(i) * t.frameRate);
-            const size_t b = std::min(lufs.size(), static_cast<size_t>(static_cast<double>(i + 1) * t.frameRate));
+            const size_t b = std::min(
+                lufs.size(), static_cast<size_t>(static_cast<double>(i + 1) * t.frameRate));
             double m = 0;
             for (size_t k = a; k < b; ++k) m += lufs[k];
             m /= static_cast<double>(std::max<size_t>(b - a, 1));
-            t.energyCurve[i] = hi > lo ? std::clamp(static_cast<float>((m - lo) / (hi - lo)), 0.f, 1.f) : 0.5f;
+            t.energyCurve[i] =
+                hi > lo ? std::clamp(static_cast<float>((m - lo) / (hi - lo)), 0.f, 1.f) : 0.5f;
         }
     }
     if (opts.progress) opts.progress(1.f);

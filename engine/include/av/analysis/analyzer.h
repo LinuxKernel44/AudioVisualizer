@@ -23,6 +23,7 @@ struct AnalyzerOptions {
 /// slices the stream into self-contained chunks that a thread pool turns into features; the
 /// global stages (tempo, beats, key, structure) then run on the merged result. The result does
 /// not depend on the number of threads.
-bool analyzeAudio(PcmSource& source, const AnalyzerOptions& opts, Timeline* out, std::string* error);
+bool analyzeAudio(PcmSource& source, const AnalyzerOptions& opts, Timeline* out,
+                  std::string* error);
 
 }  // namespace av

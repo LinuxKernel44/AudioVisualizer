@@ -9,12 +9,30 @@ namespace av {
 namespace {
 
 constexpr float kPalettes[6][4][3] = {
-    {{0.38f, 0.20f, 1.00f}, {0.00f, 0.72f, 0.95f}, {1.00f, 0.30f, 0.62f}, {0.98f, 0.82f, 0.25f}},  // neon
-    {{1.00f, 0.35f, 0.10f}, {1.00f, 0.65f, 0.15f}, {0.85f, 0.15f, 0.35f}, {0.30f, 0.05f, 0.45f}},  // ember
-    {{0.05f, 0.75f, 0.55f}, {0.10f, 0.45f, 0.95f}, {0.55f, 0.95f, 0.75f}, {0.85f, 0.95f, 0.30f}},  // aurora
-    {{0.95f, 0.20f, 0.45f}, {0.55f, 0.15f, 0.95f}, {0.20f, 0.55f, 1.00f}, {1.00f, 0.80f, 0.90f}},  // synthwave
-    {{0.90f, 0.95f, 1.00f}, {0.45f, 0.65f, 1.00f}, {0.15f, 0.30f, 0.85f}, {0.65f, 0.55f, 1.00f}},  // ice
-    {{0.20f, 1.00f, 0.35f}, {0.85f, 1.00f, 0.15f}, {0.05f, 0.65f, 0.40f}, {1.00f, 0.45f, 0.10f}},  // acid
+    {{0.38f, 0.20f, 1.00f},
+     {0.00f, 0.72f, 0.95f},
+     {1.00f, 0.30f, 0.62f},
+     {0.98f, 0.82f, 0.25f}},  // neon
+    {{1.00f, 0.35f, 0.10f},
+     {1.00f, 0.65f, 0.15f},
+     {0.85f, 0.15f, 0.35f},
+     {0.30f, 0.05f, 0.45f}},  // ember
+    {{0.05f, 0.75f, 0.55f},
+     {0.10f, 0.45f, 0.95f},
+     {0.55f, 0.95f, 0.75f},
+     {0.85f, 0.95f, 0.30f}},  // aurora
+    {{0.95f, 0.20f, 0.45f},
+     {0.55f, 0.15f, 0.95f},
+     {0.20f, 0.55f, 1.00f},
+     {1.00f, 0.80f, 0.90f}},  // synthwave
+    {{0.90f, 0.95f, 1.00f},
+     {0.45f, 0.65f, 1.00f},
+     {0.15f, 0.30f, 0.85f},
+     {0.65f, 0.55f, 1.00f}},  // ice
+    {{0.20f, 1.00f, 0.35f},
+     {0.85f, 1.00f, 0.15f},
+     {0.05f, 0.65f, 0.40f},
+     {1.00f, 0.45f, 0.10f}},  // acid
 };
 
 void setPalette(Look* l, uint32_t idx) {
@@ -60,13 +78,22 @@ float smooth(float t) {
 uint32_t sceneForLabel(SectionLabel label, uint32_t cluster) {
     switch (label) {
         case SectionLabel::Intro:
-        case SectionLabel::Outro: return kSceneBars;
-        case SectionLabel::Verse: return (cluster & 1) ? kSceneRing : kSceneBars;
-        case SectionLabel::Build: return kSceneTunnel;
-        case SectionLabel::Chorus: return cluster % 3 == 0 ? kSceneTunnel : cluster % 3 == 1 ? kSceneFractal : kSceneParticles;
-        case SectionLabel::Drop: return (cluster & 1) ? kSceneFractal : kSceneParticles;
-        case SectionLabel::Break: return kSceneRing;
-        case SectionLabel::Bridge: return kSceneParticles;
+        case SectionLabel::Outro:
+            return kSceneBars;
+        case SectionLabel::Verse:
+            return (cluster & 1) ? kSceneRing : kSceneBars;
+        case SectionLabel::Build:
+            return kSceneTunnel;
+        case SectionLabel::Chorus:
+            return cluster % 3 == 0   ? kSceneTunnel
+                   : cluster % 3 == 1 ? kSceneFractal
+                                      : kSceneParticles;
+        case SectionLabel::Drop:
+            return (cluster & 1) ? kSceneFractal : kSceneParticles;
+        case SectionLabel::Break:
+            return kSceneRing;
+        case SectionLabel::Bridge:
+            return kSceneParticles;
     }
     return kSceneBars;
 }
@@ -78,19 +105,45 @@ Look lookForLabel(SectionLabel label, float energy, uint32_t paletteIdx) {
     switch (label) {
         case SectionLabel::Intro:
         case SectionLabel::Outro:
-            l.bloom = 0.40f; l.vignette = 0.55f; l.grain = 0.035f; l.exposure = 0.85f; break;
+            l.bloom = 0.40f;
+            l.vignette = 0.55f;
+            l.grain = 0.035f;
+            l.exposure = 0.85f;
+            break;
         case SectionLabel::Verse:
-            l.bloom = 0.45f + 0.2f * e; l.chroma = 0.0012f; break;
+            l.bloom = 0.45f + 0.2f * e;
+            l.chroma = 0.0012f;
+            break;
         case SectionLabel::Build:
-            l.bloom = 0.55f + 0.3f * e; l.chroma = 0.0025f; l.feedback = 0.35f; l.glitch = 0.05f; break;
+            l.bloom = 0.55f + 0.3f * e;
+            l.chroma = 0.0025f;
+            l.feedback = 0.35f;
+            l.glitch = 0.05f;
+            break;
         case SectionLabel::Chorus:
-            l.bloom = 0.65f + 0.3f * e; l.chroma = 0.0025f; l.exposure = 0.95f; break;
+            l.bloom = 0.65f + 0.3f * e;
+            l.chroma = 0.0025f;
+            l.exposure = 0.95f;
+            break;
         case SectionLabel::Drop:
-            l.bloom = 0.8f; l.chroma = 0.0035f; l.glitch = 0.18f; l.exposure = 1.0f; l.grain = 0.03f; break;
+            l.bloom = 0.8f;
+            l.chroma = 0.0035f;
+            l.glitch = 0.18f;
+            l.exposure = 1.0f;
+            l.grain = 0.03f;
+            break;
         case SectionLabel::Break:
-            l.bloom = 0.55f; l.feedback = 0.62f; l.vignette = 0.6f; l.chroma = 0.0008f; l.exposure = 0.85f; break;
+            l.bloom = 0.55f;
+            l.feedback = 0.62f;
+            l.vignette = 0.6f;
+            l.chroma = 0.0008f;
+            l.exposure = 0.85f;
+            break;
         case SectionLabel::Bridge:
-            l.bloom = 0.6f; l.feedback = 0.3f; l.chroma = 0.0018f; break;
+            l.bloom = 0.6f;
+            l.feedback = 0.3f;
+            l.chroma = 0.0018f;
+            break;
     }
     return l;
 }
@@ -110,7 +163,8 @@ void Director::setTimeline(std::shared_ptr<const Timeline> t) {
         seg.end = s.endSec;
         seg.paletteIdx = s.cluster;
         uint32_t scene = sceneForLabel(s.label, s.cluster) % numScenes_;
-        if (scene == prevScene && numScenes_ > 1) {  // avoid a no-op "transition" between different sections
+        if (scene == prevScene &&
+            numScenes_ > 1) {  // avoid a no-op "transition" between different sections
             const uint32_t alt = (scene + 1 + (s.cluster % (numScenes_ - 1))) % numScenes_;
             scene = alt;
         }
@@ -159,7 +213,8 @@ void Director::setManualScene(int index) {
     const int next = index < 0 ? -1 : index % static_cast<int>(numScenes_);
     if (next == manual_) return;
     // Start a short blend from whatever is on screen to the new selection.
-    shownA_ = shownB_;  // the incoming scene of the last blend (or the shown scene) becomes the base
+    shownA_ =
+        shownB_;  // the incoming scene of the last blend (or the shown scene) becomes the base
     if (!initialised_) shownA_ = shownB_ = 0;
     manual_ = next;
     blending_ = true;

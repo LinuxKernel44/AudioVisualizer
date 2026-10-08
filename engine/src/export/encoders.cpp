@@ -35,7 +35,8 @@ bool EncoderBase::startCodec(AMediaFormat* fmt, const char* mime) {
         error_ = std::string("no encoder available for ") + mime;
         return false;
     }
-    if (AMediaCodec_configure(codec_, fmt, nullptr, nullptr, AMEDIACODEC_CONFIGURE_FLAG_ENCODE) != AMEDIA_OK) {
+    if (AMediaCodec_configure(codec_, fmt, nullptr, nullptr, AMEDIACODEC_CONFIGURE_FLAG_ENCODE) !=
+        AMEDIA_OK) {
         error_ = std::string("encoder rejected the configuration for ") + mime;
         return false;
     }
@@ -62,7 +63,8 @@ ssize_t EncoderBase::waitInputBuffer() {
 void EncoderBase::queueEos(int64_t ptsUs) {
     const ssize_t idx = waitInputBuffer();
     if (idx >= 0)
-        AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, 0, static_cast<uint64_t>(ptsUs),
+        AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, 0,
+                                     static_cast<uint64_t>(ptsUs),
                                      AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
 }
 
@@ -72,7 +74,8 @@ void EncoderBase::drainLoop() {
         const ssize_t out = AMediaCodec_dequeueOutputBuffer(codec_, &info, 10'000);
         if (out >= 0) {
             size_t cap = 0;
-            const uint8_t* data = AMediaCodec_getOutputBuffer(codec_, static_cast<size_t>(out), &cap);
+            const uint8_t* data =
+                AMediaCodec_getOutputBuffer(codec_, static_cast<size_t>(out), &cap);
             const bool config = info.flags & AMEDIACODEC_BUFFER_FLAG_CODEC_CONFIG;
             const bool eos = info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
             if (data && info.size > 0 && !config && track_ >= 0) {
@@ -97,7 +100,8 @@ void EncoderBase::drainLoop() {
                 failed_ = true;
                 break;
             }
-        } else if (out != AMEDIACODEC_INFO_TRY_AGAIN_LATER && out != AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+        } else if (out != AMEDIACODEC_INFO_TRY_AGAIN_LATER &&
+                   out != AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             error_ = "dequeueOutputBuffer failed";
             failed_ = true;
             break;
@@ -145,10 +149,10 @@ bool VideoEncoder::create(int width, int height, int fps, int bitrateBps, MuxSin
     AMediaFormat_setInt32(f, AMEDIAFORMAT_KEY_COLOR_FORMAT, kColorFormatYuv420SemiPlanar);
     AMediaFormat_setInt32(f, kKeyProfile, kAvcProfileHigh);
     AMediaFormat_setInt32(f, kKeyBitrateMode, kBitrateModeVbr);
-    AMediaFormat_setInt32(f, kKeyColorStandard, 1);   // COLOR_STANDARD_BT709
-    AMediaFormat_setInt32(f, kKeyColorRange, 2);      // COLOR_RANGE_LIMITED
-    AMediaFormat_setInt32(f, kKeyColorTransfer, 3);   // COLOR_TRANSFER_SDR_VIDEO
-    AMediaFormat_setInt32(f, kKeyPriority, 1);        // non-real-time: encode as fast as possible
+    AMediaFormat_setInt32(f, kKeyColorStandard, 1);  // COLOR_STANDARD_BT709
+    AMediaFormat_setInt32(f, kKeyColorRange, 2);     // COLOR_RANGE_LIMITED
+    AMediaFormat_setInt32(f, kKeyColorTransfer, 3);  // COLOR_TRANSFER_SDR_VIDEO
+    AMediaFormat_setInt32(f, kKeyPriority, 1);       // non-real-time: encode as fast as possible
     const bool ok = startCodec(f, "video/avc");
     AMediaFormat_delete(f);
     if (!ok) return false;
@@ -158,7 +162,8 @@ bool VideoEncoder::create(int width, int height, int fps, int bitrateBps, MuxSin
     stride_ = AMediaFormat_getInt32(in, kKeyStride, &v) && v >= width ? v : width;
     sliceHeight_ = AMediaFormat_getInt32(in, kKeySliceHeight, &v) && v >= height ? v : height;
     AMediaFormat_delete(in);
-    LOGI("video encoder %dx%d@%d, %d bps, input stride=%d slice=%d", width, height, fps, bitrateBps, stride_, sliceHeight_);
+    LOGI("video encoder %dx%d@%d, %d bps, input stride=%d slice=%d", width, height, fps, bitrateBps,
+         stride_, sliceHeight_);
     return true;
 }
 
@@ -178,11 +183,16 @@ bool VideoEncoder::queueFrame(const uint8_t* nv12, int64_t ptsUs) {
     if (stride_ == w_ && sliceHeight_ == h_) {
         std::memcpy(dst, nv12, static_cast<size_t>(w_) * static_cast<size_t>(h_) * 3 / 2);
     } else {
-        for (int r = 0; r < h_; ++r) std::memcpy(dst + static_cast<size_t>(r) * stride_, srcY + static_cast<size_t>(r) * w_, static_cast<size_t>(w_));
+        for (int r = 0; r < h_; ++r)
+            std::memcpy(dst + static_cast<size_t>(r) * stride_, srcY + static_cast<size_t>(r) * w_,
+                        static_cast<size_t>(w_));
         uint8_t* dstUV = dst + static_cast<size_t>(stride_) * static_cast<size_t>(sliceHeight_);
-        for (int r = 0; r < h_ / 2; ++r) std::memcpy(dstUV + static_cast<size_t>(r) * stride_, srcUV + static_cast<size_t>(r) * w_, static_cast<size_t>(w_));
+        for (int r = 0; r < h_ / 2; ++r)
+            std::memcpy(dstUV + static_cast<size_t>(r) * stride_,
+                        srcUV + static_cast<size_t>(r) * w_, static_cast<size_t>(w_));
     }
-    return AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, need, static_cast<uint64_t>(ptsUs), 0) == AMEDIA_OK;
+    return AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, need,
+                                        static_cast<uint64_t>(ptsUs), 0) == AMEDIA_OK;
 }
 
 bool VideoEncoder::finishVideo(int64_t lastPtsUs) {
@@ -217,7 +227,9 @@ bool AudioEncoder::queuePcm(const int16_t* pcm, size_t frames, int64_t firstFram
         const size_t n = std::min(frames - done, cap / 4);
         std::memcpy(dst, pcm + done * 2, n * 4);
         const int64_t pts = (firstFramePts + static_cast<int64_t>(done)) * 1'000'000 / sr_;
-        if (AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, n * 4, static_cast<uint64_t>(pts), 0) != AMEDIA_OK) return false;
+        if (AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, n * 4,
+                                         static_cast<uint64_t>(pts), 0) != AMEDIA_OK)
+            return false;
         done += n;
     }
     return true;

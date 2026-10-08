@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "av/sim/timeline_sampler.h"
+
+#include <gtest/gtest.h>
 
 TEST(TimelineSampler, BeatPulseDecaysAndDownbeatIsStronger) {
     auto t = std::make_shared<av::Timeline>();

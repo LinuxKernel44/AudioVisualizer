@@ -33,8 +33,8 @@ struct ChunkFeatures {
     size_t startFrame = 0;
     size_t count = 0;
     std::array<std::vector<float>, kNumChannels> ch;  // everything except Loudness (filled later)
-    std::vector<float> chromaSum;                      // 12 values accumulated over the chunk
-    std::vector<float> groupVectors;                   // (count/groupFrames) * kSectionDims
+    std::vector<float> chromaSum;                     // 12 values accumulated over the chunk
+    std::vector<float> groupVectors;                  // (count/groupFrames) * kSectionDims
     float peakLin = 0.f;
     double sumSq = 0.0;  // for crest factor
 };
@@ -43,12 +43,12 @@ struct ChunkFeatures {
 /// [startFrame - context, startFrame + count + context) (zero padded outside the file); see
 /// chunkSampleRange(). Pure function of its inputs, so results are independent of threading.
 class FeatureExtractor {
-public:
+   public:
     explicit FeatureExtractor(const AnalysisConfig& cfg);
     ~FeatureExtractor();
     ChunkFeatures process(size_t startFrame, size_t count, const float* segL, const float* segR);
 
-private:
+   private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

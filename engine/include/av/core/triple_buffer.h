@@ -9,7 +9,7 @@ namespace av {
 /// sees the most recent one. Neither side ever blocks or waits for the other.
 template <typename T>
 class TripleBuffer {
-public:
+   public:
     /// Producer: returns the slot to fill. Call publish() afterwards.
     T& writeSlot() { return slots_[writeIdx_]; }
 
@@ -28,7 +28,7 @@ public:
         return slots_[readIdx_];
     }
 
-private:
+   private:
     static constexpr uint32_t kNewFlag = 0x4;
     static constexpr uint32_t kIndexMask = 0x3;
     T slots_[3]{};

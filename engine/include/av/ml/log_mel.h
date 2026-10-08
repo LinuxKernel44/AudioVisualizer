@@ -11,7 +11,7 @@ namespace av {
 /// slaney mel scale, power=1, normalized="frame_length", center/reflect padding) followed by
 /// log1p(1000 x).
 class LogMel {
-public:
+   public:
     static constexpr size_t kSampleRate = 22050;
     static constexpr size_t kFft = 1024;
     static constexpr size_t kHop = 441;
@@ -30,7 +30,7 @@ public:
     /// Frame count for a signal of `samples` samples: 1 + samples / hop.
     static size_t frameCount(size_t samples) { return 1 + samples / kHop; }
 
-private:
+   private:
     void emitFrame(size_t f, const float* window, std::vector<float>* out);
     float sampleAt(long long idx, long long total) const;
 

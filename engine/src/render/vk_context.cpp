@@ -102,7 +102,8 @@ void Context::destroy() {
 
 uint32_t Context::findMemoryType(uint32_t bits, VkMemoryPropertyFlags flags) const {
     for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i)
-        if ((bits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & flags) == flags) return i;
+        if ((bits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & flags) == flags)
+            return i;
     return UINT32_MAX;
 }
 
@@ -120,14 +121,17 @@ bool createBuffer(const Context& c, VkDeviceSize size, VkBufferUsageFlags usage,
     VK_TRY(vkCreateBuffer(c.dev, &bi, nullptr, &out->buf));
     VkMemoryRequirements mr;
     vkGetBufferMemoryRequirements(c.dev, out->buf, &mr);
-    VkMemoryPropertyFlags want = hostVisible ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-                                             : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkMemoryPropertyFlags want =
+        hostVisible ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+                    : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     uint32_t mt = UINT32_MAX;
     if (hostVisible && cachedReadback) {
-        mt = c.findMemoryType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT |
+        mt = c.findMemoryType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                     VK_MEMORY_PROPERTY_HOST_CACHED_BIT |
                                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         if (mt == UINT32_MAX) {  // cached but not coherent: needs explicit invalidation
-            mt = c.findMemoryType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+            mt = c.findMemoryType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                         VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
             out->coherent = mt == UINT32_MAX;
         }
     }

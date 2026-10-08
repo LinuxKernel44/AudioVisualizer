@@ -1,21 +1,23 @@
+#include "av/sim/front_end.h"
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cmath>
 #include <vector>
 
-#include "av/sim/front_end.h"
-
 namespace {
 
 std::vector<float> sine(double hz, double sr, size_t n) {
     std::vector<float> s(n);
-    for (size_t i = 0; i < n; ++i) s[i] = 0.5f * static_cast<float>(std::sin(2.0 * M_PI * hz * static_cast<double>(i) / sr));
+    for (size_t i = 0; i < n; ++i)
+        s[i] = 0.5f * static_cast<float>(std::sin(2.0 * M_PI * hz * static_cast<double>(i) / sr));
     return s;
 }
 
 // Runs `seconds` of a sine through a FrontEnd with the given push chunk size and step interval.
-av::VisualState run(double hz, double sr, double seconds, size_t chunk, const av::RenderSettings& rs = {}) {
+av::VisualState run(double hz, double sr, double seconds, size_t chunk,
+                    const av::RenderSettings& rs = {}) {
     av::FrontEnd fe(sr);
     fe.setSettings(rs);
     auto x = sine(hz, sr, static_cast<size_t>(seconds * sr));

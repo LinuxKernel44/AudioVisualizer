@@ -9,19 +9,19 @@ namespace av {
 
 /// Per-frame feature channels. All channels have exactly `numFrames` entries.
 enum class Ch : uint32_t {
-    Rms = 0,        // 0..1 (linear, soft-scaled)
-    Centroid,       // 0..1 (log-frequency position of the spectral centroid)
-    Flatness,       // 0..1
-    Onset,          // onset strength, normalised so the 95th percentile is ~1
-    OnsetLow,       // same, restricted to kick range
-    OnsetMid,       // snare / body range
-    OnsetHigh,      // hats / air
-    Percussive,     // 0..1 share of percussive energy (HPSS)
-    Correlation,    // -1..1 inter-channel correlation
-    Width,          // 0..1 side/(mid+side)
-    Pan,            // -1..1 (left..right)
-    Loudness,       // momentary loudness, LUFS
-    Band0,          // 7 band energies, 0..1 (dB mapped from kBandDbFloor, span kBandDbSpan)
+    Rms = 0,      // 0..1 (linear, soft-scaled)
+    Centroid,     // 0..1 (log-frequency position of the spectral centroid)
+    Flatness,     // 0..1
+    Onset,        // onset strength, normalised so the 95th percentile is ~1
+    OnsetLow,     // same, restricted to kick range
+    OnsetMid,     // snare / body range
+    OnsetHigh,    // hats / air
+    Percussive,   // 0..1 share of percussive energy (HPSS)
+    Correlation,  // -1..1 inter-channel correlation
+    Width,        // 0..1 side/(mid+side)
+    Pan,          // -1..1 (left..right)
+    Loudness,     // momentary loudness, LUFS
+    Band0,        // 7 band energies, 0..1 (dB mapped from kBandDbFloor, span kBandDbSpan)
     Band1,
     Band2,
     Band3,
@@ -73,8 +73,8 @@ struct Timeline {
     float bpmConfidence = 0.f;
     std::vector<float> tempoCurve;  // BPM sampled every tempoCurveStepSec
     float tempoCurveStepSec = 2.f;
-    std::vector<float> beats;        // seconds
-    std::vector<uint8_t> beatBar;    // position inside the bar, 0 = downbeat
+    std::vector<float> beats;      // seconds
+    std::vector<uint8_t> beatBar;  // position inside the bar, 0 = downbeat
     uint32_t beatsPerBar = 4;
     float downbeatConfidence = 0.f;
     uint32_t beatSource = 0;  // 0 = classical DSP, 1 = Beat This! model
@@ -82,7 +82,7 @@ struct Timeline {
 
     // Tonality / loudness / dynamics
     std::array<float, 12> chromaMean{};
-    int key = -1;        // pitch class 0..11 (C=0), -1 unknown
+    int key = -1;  // pitch class 0..11 (C=0), -1 unknown
     bool minor = false;
     float keyConfidence = 0.f;
     float integratedLufs = -70.f;
@@ -94,15 +94,17 @@ struct Timeline {
     std::vector<Section> sections;
     std::vector<float> energyCurve;  // 1 value per second, 0..1
 
-    float frameTime(uint64_t f) const { return static_cast<float>(static_cast<double>(f) / frameRate); }
+    float frameTime(uint64_t f) const {
+        return static_cast<float>(static_cast<double>(f) / frameRate);
+    }
     uint64_t frameAt(double sec) const;
     /// Linear interpolation of channel `c` at time `sec` (clamped).
     float valueAt(Ch c, double sec) const;
     /// Beat tracking position at `sec`.
     struct BeatPos {
-        int beatIndex = -1;   // index into beats, -1 before the first beat
-        float phase = 0.f;    // 0..1 inside the beat
-        int barBeat = 0;      // position in bar
+        int beatIndex = -1;  // index into beats, -1 before the first beat
+        float phase = 0.f;   // 0..1 inside the beat
+        int barBeat = 0;     // position in bar
         float sinceBeatSec = 0.f;
     };
     BeatPos beatPosAt(double sec) const;

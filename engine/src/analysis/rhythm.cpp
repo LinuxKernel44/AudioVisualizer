@@ -2,9 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numeric>
 #include <cstdio>
 #include <cstdlib>
+#include <numeric>
 
 namespace av {
 
@@ -19,7 +19,8 @@ std::vector<float> conditionOnsetEnvelope(const std::vector<float>& raw, double 
     for (size_t i = 0; i < n; ++i) {
         const long a = std::max<long>(0, static_cast<long>(i) - half);
         const long b = std::min<long>(static_cast<long>(n), static_cast<long>(i) + half + 1);
-        const double mean = (cum[static_cast<size_t>(b)] - cum[static_cast<size_t>(a)]) / static_cast<double>(b - a);
+        const double mean = (cum[static_cast<size_t>(b)] - cum[static_cast<size_t>(a)]) /
+                            static_cast<double>(b - a);
         const float v = std::max(0.f, raw[i] - static_cast<float>(mean));
         out[i] = v;
         var += static_cast<double>(v) * v;
@@ -33,7 +34,8 @@ std::vector<float> conditionOnsetEnvelope(const std::vector<float>& raw, double 
 namespace {
 
 // Autocorrelation of env[a,b) for lags [minLag, maxLag], normalised by overlap length.
-std::vector<float> acf(const std::vector<float>& env, size_t a, size_t b, size_t minLag, size_t maxLag) {
+std::vector<float> acf(const std::vector<float>& env, size_t a, size_t b, size_t minLag,
+                       size_t maxLag) {
     std::vector<float> r(maxLag + 1, 0.f);
     for (size_t lag = minLag; lag <= maxLag; ++lag) {
         if (b - a <= lag) break;
@@ -76,7 +78,9 @@ LagPick pickLag(const std::vector<float>& r, size_t minLag, size_t maxLag, doubl
     size_t cnt = 0;
     for (size_t lag = minLag; lag <= maxLag; ++lag, ++cnt) mean += s[lag];
     mean /= static_cast<double>(std::max<size_t>(cnt, 1));
-    p.prominence = mean > 1e-9 ? static_cast<float>(std::min(1.0, (s[best] - mean) / (s[best] + mean + 1e-9))) : 0.f;
+    p.prominence =
+        mean > 1e-9 ? static_cast<float>(std::min(1.0, (s[best] - mean) / (s[best] + mean + 1e-9)))
+                    : 0.f;
     return p;
 }
 
@@ -101,7 +105,8 @@ TempoResult estimateTempo(const std::vector<float>& rawEnv, double fr, float min
     const size_t maxLag = static_cast<size_t>(std::ceil(fr * 60.0 / minBpm));
     if (env.size() < maxLag * 4) return res;
 
-    const std::vector<float> r = acf(env, 0, env.size(), minLag, maxLag * 4 < env.size() ? maxLag * 4 : maxLag);
+    const std::vector<float> r =
+        acf(env, 0, env.size(), minLag, maxLag * 4 < env.size() ? maxLag * 4 : maxLag);
     const LagPick g = pickLag(r, minLag, maxLag, fr);
     res.bpm = static_cast<float>(60.0 * fr / g.lag);
     res.confidence = g.prominence;
@@ -165,7 +170,8 @@ std::vector<float> trackBeats(const std::vector<float>& env, double fr, const Te
         for (long tau = std::max<long>(0, lo); tau <= hi; ++tau) {
             if (tau < 0 || static_cast<size_t>(tau) >= t) continue;
             const double d = std::log(static_cast<double>(t - static_cast<size_t>(tau)) / P);
-            const float cand = score[static_cast<size_t>(tau)] - tightness * static_cast<float>(d * d);
+            const float cand =
+                score[static_cast<size_t>(tau)] - tightness * static_cast<float>(d * d);
             if (cand > best) {
                 best = cand;
                 arg = static_cast<int>(tau);
@@ -265,7 +271,8 @@ DownbeatResult findDownbeats(const std::vector<float>& beats, double fr,
     }
     res.beatsPerBar = bestM;
     res.confidence = std::clamp(bestScore * 2.f, 0.f, 1.f);
-    for (size_t i = 0; i < nb; ++i) res.barPos[i] = static_cast<uint8_t>((i + bestM - bestPhase) % bestM);
+    for (size_t i = 0; i < nb; ++i)
+        res.barPos[i] = static_cast<uint8_t>((i + bestM - bestPhase) % bestM);
     return res;
 }
 
@@ -294,7 +301,8 @@ std::vector<Onset> pickOnsets(const Timeline& t) {
         if (!(full[i] >= full[i - 1] && full[i] > full[i + 1])) continue;
         const long a = std::max<long>(0, static_cast<long>(i) - w);
         const long b = std::min<long>(static_cast<long>(n), static_cast<long>(i) + w + 1);
-        const double mean = (cum[static_cast<size_t>(b)] - cum[static_cast<size_t>(a)]) / static_cast<double>(b - a);
+        const double mean = (cum[static_cast<size_t>(b)] - cum[static_cast<size_t>(a)]) /
+                            static_cast<double>(b - a);
         if (full[i] < mean * 1.6 + 0.05) continue;
         if (static_cast<long>(i) - last < minGap) continue;
         uint8_t bands = 0;
@@ -308,8 +316,10 @@ std::vector<Onset> pickOnsets(const Timeline& t) {
 }
 
 KeyResult estimateKey(const std::array<float, 12>& chroma) {
-    static const float major[12] = {6.35f, 2.23f, 3.48f, 2.33f, 4.38f, 4.09f, 2.52f, 5.19f, 2.39f, 3.66f, 2.29f, 2.88f};
-    static const float minor[12] = {6.33f, 2.68f, 3.52f, 5.38f, 2.60f, 3.53f, 2.54f, 4.75f, 3.98f, 2.69f, 3.34f, 3.17f};
+    static const float major[12] = {6.35f, 2.23f, 3.48f, 2.33f, 4.38f, 4.09f,
+                                    2.52f, 5.19f, 2.39f, 3.66f, 2.29f, 2.88f};
+    static const float minor[12] = {6.33f, 2.68f, 3.52f, 5.38f, 2.60f, 3.53f,
+                                    2.54f, 4.75f, 3.98f, 2.69f, 3.34f, 3.17f};
     KeyResult r;
     double cm = 0;
     for (float v : chroma) cm += v;
@@ -327,7 +337,8 @@ KeyResult estimateKey(const std::array<float, 12>& chroma) {
         for (int i = 0; i < 12; ++i) ps += (prof[i] - pm) * (prof[i] - pm);
         for (int tonic = 0; tonic < 12; ++tonic) {
             double cov = 0;
-            for (int i = 0; i < 12; ++i) cov += (chroma[static_cast<size_t>((i + tonic) % 12)] - cm) * (prof[i] - pm);
+            for (int i = 0; i < 12; ++i)
+                cov += (chroma[static_cast<size_t>((i + tonic) % 12)] - cm) * (prof[i] - pm);
             const double corr = cov / std::sqrt(cs * ps);
             if (corr > best) {
                 second = best;

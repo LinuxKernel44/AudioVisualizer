@@ -35,7 +35,8 @@ Resampler::Resampler(double inRate, double outRate) : ratio_(inRate / outRate) {
 
 void Resampler::drain(std::vector<float>* out, bool final) {
     for (;;) {
-        const double pos = static_cast<double>(produced_) * ratio_;  // input time of the next output
+        const double pos =
+            static_cast<double>(produced_) * ratio_;  // input time of the next output
         const long long need = static_cast<long long>(std::floor(pos)) + halfWidth_;
         if (!final && need >= total_) break;
         if (final && pos > static_cast<double>(total_ - 1)) break;
@@ -48,14 +49,17 @@ void Resampler::drain(std::vector<float>* out, bool final) {
             if (d >= halfWidth_) continue;
             const double ft = d * kTableRes;
             const size_t k = static_cast<size_t>(ft);
-            const float w = table_[k] + (table_[k + 1] - table_[k]) * static_cast<float>(ft - static_cast<double>(k));
+            const float w = table_[k] + (table_[k + 1] - table_[k]) *
+                                            static_cast<float>(ft - static_cast<double>(k));
             acc += static_cast<double>(buf_[static_cast<size_t>(i - base_)]) * w;
         }
         out->push_back(static_cast<float>(acc));
         ++produced_;
     }
     // Discard input no later output can use.
-    const long long keep = static_cast<long long>(std::floor(static_cast<double>(produced_) * ratio_)) - halfWidth_ - 1;
+    const long long keep =
+        static_cast<long long>(std::floor(static_cast<double>(produced_) * ratio_)) - halfWidth_ -
+        1;
     if (keep > base_ + 16384) {
         buf_.erase(buf_.begin(), buf_.begin() + static_cast<long>(keep - base_));
         base_ = keep;
