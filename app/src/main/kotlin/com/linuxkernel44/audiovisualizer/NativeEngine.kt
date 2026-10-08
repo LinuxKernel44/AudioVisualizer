@@ -16,6 +16,8 @@ class NativeEngine {
     fun isFinished(): Boolean = isFinished(handle)
     fun frameMs(): Float = frameMs(handle)
     fun setSurface(surface: Surface?) = setSurface(handle, surface)
+    fun setControls(c: Controls) = setControls(handle, c.sensitivity, c.gainBass, c.gainMid, c.gainTreble,
+        c.smoothing, c.palette, c.beatFlash, c.bloom)
     fun setScene(index: Int) = setScene(handle, index)
     fun sceneIndex(): Int = sceneIndex(handle)
     fun setCacheDir(dir: String) = setCacheDir(handle, dir)
@@ -44,6 +46,8 @@ class NativeEngine {
     private external fun isFinished(h: Long): Boolean
     private external fun frameMs(h: Long): Float
     private external fun setSurface(h: Long, surface: Surface?)
+    private external fun setControls(h: Long, sensitivity: Float, gainBass: Float, gainMid: Float,
+        gainTreble: Float, smoothing: Float, palette: Int, beatFlash: Float, bloom: Float)
     private external fun setScene(h: Long, index: Int)
     private external fun sceneIndex(h: Long): Int
     private external fun setCacheDir(h: Long, dir: String)

@@ -27,6 +27,13 @@ void setPalette(Look* l, uint32_t idx) {
     }
 }
 
+}  // namespace
+
+void setLookPalette(Look* look, uint32_t idx) { setPalette(look, idx); }
+uint32_t paletteCount() { return 6; }
+
+namespace {
+
 float lerp(float a, float b, float t) { return a + (b - a) * t; }
 
 Look lerpLook(const Look& a, const Look& b, float t) {

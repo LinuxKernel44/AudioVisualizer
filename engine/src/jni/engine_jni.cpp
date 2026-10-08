@@ -55,3 +55,17 @@ JNI(jstring, summaryJson)(JNIEnv* env, jobject, jlong h) {
 
 JNI(void, setScene)(JNIEnv*, jobject, jlong h, jint index) { from(h)->setScene(index); }
 JNI(jint, sceneIndex)(JNIEnv*, jobject, jlong h) { return from(h)->sceneIndex(); }
+
+JNI(void, setControls)(JNIEnv*, jobject, jlong h, jfloat sensitivity, jfloat gainBass, jfloat gainMid,
+                       jfloat gainTreble, jfloat smoothing, jint palette, jfloat beatFlash, jfloat bloom) {
+    av::RenderSettings s;
+    s.sensitivity = sensitivity;
+    s.gainBass = gainBass;
+    s.gainMid = gainMid;
+    s.gainTreble = gainTreble;
+    s.smoothing = smoothing;
+    s.palette = palette;
+    s.beatFlash = beatFlash;
+    s.bloom = bloom;
+    from(h)->setSettings(s);
+}

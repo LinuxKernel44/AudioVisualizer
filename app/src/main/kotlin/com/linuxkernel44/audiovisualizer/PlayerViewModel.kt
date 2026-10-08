@@ -50,7 +50,19 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         selectScene(((base + delta) % n + n) % n)
     }
 
+    private val prefs = app.getSharedPreferences("controls", android.content.Context.MODE_PRIVATE)
+    var controls by mutableStateOf(Controls.load(prefs))
+        private set
+    var showControls by mutableStateOf(false)
+
+    fun updateControls(c: Controls) {
+        controls = c
+        engine.setControls(c)
+        c.save(prefs)
+    }
+
     init {
+        engine.setControls(controls)
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }
         engine.setCacheDir(dir.absolutePath)
     }

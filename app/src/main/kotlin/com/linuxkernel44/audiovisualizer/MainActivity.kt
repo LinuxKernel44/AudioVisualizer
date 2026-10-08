@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -129,14 +131,18 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                 }
             },
         )
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 36.dp)) {
         Row(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(top = 36.dp, start = 12.dp, end = 12.dp),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             FilterChip(selected = vm.scene < 0, onClick = { vm.selectScene(-1) }, label = { Text("Auto") })
             SCENE_NAMES.forEachIndexed { i, n ->
                 FilterChip(selected = vm.scene == i, onClick = { vm.selectScene(i) }, label = { Text(n) })
             }
+            FilterChip(selected = vm.showControls, onClick = { vm.showControls = !vm.showControls }, label = { Text("Tune") })
+        }
+        if (vm.showControls) ControlsPanel(vm.controls, { vm.updateControls(it) }, Modifier.padding(top = 8.dp))
         }
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp),

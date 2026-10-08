@@ -5,11 +5,13 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "av/analysis/analysis_job.h"
 #include "av/audio/decoder.h"
 #include "av/audio/player.h"
+#include "av/core/render_settings.h"
 #include "av/core/spsc_ring.h"
 #include "av/core/triple_buffer.h"
 #include "av/core/visual_state.h"
@@ -34,6 +36,10 @@ public:
     /// -1 = automatic scene selection, otherwise a scene index.
     void setScene(int index) { manualScene_.store(index); if (worker_) worker_->setManualScene(index); }
     int sceneIndex() const { return manualScene_.load(); }
+    void setSettings(const RenderSettings& s) {
+        { std::lock_guard<std::mutex> lk(settingsMu_); settings_ = s; }
+        if (worker_) worker_->setSettings(s);
+    }
 
     /// Directory for cached analysis results (created by the caller). Empty disables caching.
     void setCacheDir(const std::string& dir) { cacheDir_ = dir; }
@@ -58,6 +64,8 @@ private:
     AnalysisJob analysis_;             // outlives the worker that polls it
     std::string cacheDir_;
     std::atomic<int> manualScene_{-1};
+    std::mutex settingsMu_;
+    RenderSettings settings_;
     SpscRing<float> tap_{1 << 15};
     VulkanRenderer renderer_{state_};
     std::unique_ptr<Decoder> decoder_;

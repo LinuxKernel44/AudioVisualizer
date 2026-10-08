@@ -55,6 +55,10 @@ private:
     bool initialised_ = false;
 };
 
+/// Overwrites the palette of `look` with built-in palette `idx` (wraps around).
+void setLookPalette(Look* look, uint32_t idx);
+uint32_t paletteCount();
+
 /// Look presets used by the plan (exposed for tests and tooling).
 Look lookForLabel(SectionLabel label, float energy, uint32_t paletteIdx);
 uint32_t sceneForLabel(SectionLabel label, uint32_t cluster);
