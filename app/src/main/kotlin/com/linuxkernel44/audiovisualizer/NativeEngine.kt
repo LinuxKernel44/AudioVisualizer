@@ -26,6 +26,7 @@ class NativeEngine {
     fun setScene(index: Int) = setScene(handle, index)
     fun sceneIndex(): Int = sceneIndex(handle)
     fun setCacheDir(dir: String) = setCacheDir(handle, dir)
+    fun setBeatModel(path: String) = setBeatModel(handle, path)
     fun analysisState(): Int = analysisState(handle)
     fun analysisProgress(): Float = analysisProgress(handle)
     fun analysisFromCache(): Boolean = analysisFromCache(handle)
@@ -60,6 +61,7 @@ class NativeEngine {
     private external fun setScene(h: Long, index: Int)
     private external fun sceneIndex(h: Long): Int
     private external fun setCacheDir(h: Long, dir: String)
+    private external fun setBeatModel(h: Long, path: String)
     private external fun analysisState(h: Long): Int
     private external fun analysisProgress(h: Long): Float
     private external fun analysisFromCache(h: Long): Boolean

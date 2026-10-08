@@ -97,7 +97,7 @@ void ExportJob::run() {
 bool ExportJob::runImpl(std::string* err) {
     // ---- audio source + analysis ------------------------------------------------------------
     setPhase("Analyzing audio");
-    auto timeline = analyzeFileCached(p_.audioFd, p_.cacheDir, &cancel_, [this](float f) { progress_.store(f * 0.15f); }, nullptr, err);
+    auto timeline = analyzeFileCached(p_.audioFd, p_.cacheDir, &cancel_, [this](float f) { progress_.store(f * 0.15f); }, nullptr, err, p_.modelPath);
     if (!timeline) return false;
     if (cancel_.load()) return false;
 

@@ -23,7 +23,8 @@ public:
     AnalysisJob& operator=(const AnalysisJob&) = delete;
 
     /// Starts analysing the audio behind `fd` (duplicated). `cacheDir` may be empty.
-    void start(int fd, const std::string& cacheDir);
+    /// `modelPath` (optional) enables the ML beat model; it is part of the cache key.
+    void start(int fd, const std::string& cacheDir, const std::string& modelPath = {});
     void cancel() {
         cancel_.store(true);
         if (thread_.joinable()) thread_.join();
@@ -43,7 +44,7 @@ public:
     }
 
 private:
-    void run(int fd, std::string cacheDir);
+    void run(int fd, std::string cacheDir, std::string modelPath);
 
     std::thread thread_;
     std::atomic<bool> cancel_{false};
@@ -63,6 +64,7 @@ uint64_t fingerprintFd(int fd);
 std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cacheDir,
                                                   const std::atomic<bool>* cancel,
                                                   const std::function<void(float)>& progress,
-                                                  bool* fromCache, std::string* error);
+                                                  bool* fromCache, std::string* error,
+                                                  const std::string& modelPath = {});
 
 }  // namespace av

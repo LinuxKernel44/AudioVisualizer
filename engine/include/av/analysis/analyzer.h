@@ -14,6 +14,9 @@ struct AnalyzerOptions {
     double expectedDurationSec = 0;       // only used for progress reporting
     std::function<void(float)> progress;  // 0..1, called from the producer thread
     const std::atomic<bool>* cancel = nullptr;
+    /// Optional: called after the classical rhythm stage and before onsets/structure, with the
+    /// partially filled Timeline. Lets the ML beat model replace beats, tempo and meter.
+    std::function<void(Timeline&)> refineRhythm;
 };
 
 /// Offline analysis pipeline. A producer thread reads PCM, measures loudness sequentially and

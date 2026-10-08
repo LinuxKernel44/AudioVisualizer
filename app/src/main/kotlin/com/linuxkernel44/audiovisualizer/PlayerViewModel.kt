@@ -79,6 +79,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         engine.setControls(controls)
+        engine.setBeatModel(BeatModel.path(app))
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }
         engine.setCacheDir(dir.absolutePath)
     }

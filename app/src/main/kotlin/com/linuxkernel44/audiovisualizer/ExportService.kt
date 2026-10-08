@@ -88,6 +88,7 @@ class ExportService : Service() {
                         a.fd, o.fd, cfg.width, cfg.height, cfg.fps, cfg.videoBitrate, 192_000, scene, 1f,
                         controls.sensitivity, controls.gainBass, controls.gainMid, controls.gainTreble,
                         controls.smoothing, controls.palette, controls.beatFlash, controls.bloom, cacheDir,
+                        BeatModel.path(applicationContext),
                     )
                     // The native job duplicated both descriptors; poll until it finishes.
                     while (true) {

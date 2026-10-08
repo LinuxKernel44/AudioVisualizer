@@ -38,6 +38,11 @@ JNI(void, setSurface)(JNIEnv* env, jobject, jlong h, jobject surface) {
     if (w) ANativeWindow_release(w);
 }
 
+JNI(void, setBeatModel)(JNIEnv* env, jobject, jlong h, jstring path) {
+    const char* c = env->GetStringUTFChars(path, nullptr);
+    from(h)->setBeatModel(c);
+    env->ReleaseStringUTFChars(path, c);
+}
 JNI(void, setCacheDir)(JNIEnv* env, jobject, jlong h, jstring dir) {
     const char* c = env->GetStringUTFChars(dir, nullptr);
     from(h)->setCacheDir(c);
@@ -94,7 +99,7 @@ av::ExportJob* job(jlong h) { return reinterpret_cast<av::ExportJob*>(h); }
 JNIX(jlong, start)(JNIEnv* env, jobject, jint audioFd, jint outFd, jint width, jint height, jint fps,
                    jint videoBitrate, jint audioBitrate, jint scene, jfloat renderScale, jfloat sensitivity,
                    jfloat gainBass, jfloat gainMid, jfloat gainTreble, jfloat smoothing, jint palette,
-                   jfloat beatFlash, jfloat bloom, jstring cacheDir) {
+                   jfloat beatFlash, jfloat bloom, jstring cacheDir, jstring modelPath) {
     av::ExportParams p;
     p.audioFd = audioFd;
     p.outFd = outFd;
@@ -116,6 +121,9 @@ JNIX(jlong, start)(JNIEnv* env, jobject, jint audioFd, jint outFd, jint width, j
     const char* c = env->GetStringUTFChars(cacheDir, nullptr);
     p.cacheDir = c;
     env->ReleaseStringUTFChars(cacheDir, c);
+    const char* m = env->GetStringUTFChars(modelPath, nullptr);
+    p.modelPath = m;
+    env->ReleaseStringUTFChars(modelPath, m);
     auto* j = new av::ExportJob(std::move(p));
     j->start();
     return reinterpret_cast<jlong>(j);

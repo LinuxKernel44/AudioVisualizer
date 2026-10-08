@@ -183,7 +183,7 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                     val sm = vm.summary
                     if (sm != null) {
                         Text(
-                            "%.0f BPM  ·  %s  ·  %.1f LUFS  ·  %d/4".format(sm.bpm, sm.keyText, sm.lufs, sm.beatsPerBar),
+                            "%.0f BPM  ·  %s  ·  %.1f LUFS  ·  %d/4%s".format(sm.bpm, sm.keyText, sm.lufs, sm.beatsPerBar, if (sm.beatSource == "ml") "  ·  ML" else ""),
                             color = Color.White,
                             modifier = Modifier.padding(bottom = 6.dp),
                         )

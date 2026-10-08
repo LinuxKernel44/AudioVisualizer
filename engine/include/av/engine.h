@@ -43,6 +43,8 @@ public:
 
     /// Directory for cached analysis results (created by the caller). Empty disables caching.
     void setCacheDir(const std::string& dir) { cacheDir_ = dir; }
+    /// Path of the Beat This! ONNX model (optional). Applies to the next file that is loaded.
+    void setBeatModel(const std::string& path) { modelPath_ = path; }
     int analysisState() const { return static_cast<int>(analysis_.state()); }
     float analysisProgress() const { return analysis_.progress(); }
     bool analysisFromCache() const { return analysis_.fromCache(); }
@@ -67,6 +69,7 @@ private:
     TripleBuffer<VisualState> state_;  // declared first: outlives worker and renderer
     AnalysisJob analysis_;             // outlives the worker that polls it
     std::string cacheDir_;
+    std::string modelPath_;
     std::atomic<int> manualScene_{-1};
     std::mutex settingsMu_;
     RenderSettings settings_;

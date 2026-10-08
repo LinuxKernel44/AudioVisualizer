@@ -22,6 +22,7 @@ struct ExportParams {
     float renderScale = 1.f;
     RenderSettings settings;
     std::string cacheDir;
+    std::string modelPath;  // optional Beat This! ONNX model
 };
 
 /// Offline, deterministic video export: decode -> FrontEnd -> Vulkan offscreen render -> NV12 ->
