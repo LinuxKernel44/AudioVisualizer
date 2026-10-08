@@ -19,7 +19,7 @@ namespace av {
 /// Streaming audio decoder (AMediaExtractor + AMediaCodec). Decodes on its own thread into a
 /// ring buffer of interleaved stereo float PCM, so memory use is independent of track length.
 class Decoder {
-public:
+   public:
     Decoder();
     ~Decoder();
     Decoder(const Decoder&) = delete;
@@ -42,7 +42,7 @@ public:
     const std::atomic<bool>& eofFlag() const { return eof_; }
     SpscRing<float>& ring() { return ring_; }
 
-private:
+   private:
     void run();
     void publishFormat(AMediaFormat* fmt);
 

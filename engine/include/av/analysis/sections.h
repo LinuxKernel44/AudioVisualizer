@@ -14,7 +14,8 @@ struct SectionInput {
     double groupSec = 0.25;
     const std::vector<float>* loudness = nullptr;  // per group, LUFS
     const std::vector<float>* beats = nullptr;     // optional, seconds: boundaries snap to them
-    const std::vector<float>* beatBar = nullptr;   // unused placeholder for future meter-aware snapping
+    const std::vector<float>* beatBar =
+        nullptr;  // unused placeholder for future meter-aware snapping
     double durationSec = 0;
 };
 

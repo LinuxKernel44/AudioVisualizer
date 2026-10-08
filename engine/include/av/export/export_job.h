@@ -19,7 +19,7 @@ struct ExportParams {
     int fps = 30;
     int videoBitrate = 12'000'000;
     int audioBitrate = 192'000;
-    int scene = -1;     // -1 = automatic (follow the structure), else a scene index
+    int scene = -1;  // -1 = automatic (follow the structure), else a scene index
     float renderScale = 1.f;
     RenderSettings settings;
     std::string cacheDir;
@@ -36,7 +36,7 @@ struct ExportParams {
 /// Offline, deterministic video export: decode -> FrontEnd -> Vulkan offscreen render -> NV12 ->
 /// H.264, audio -> AAC, both muxed into an MP4. Runs on its own thread; poll from anywhere.
 class ExportJob {
-public:
+   public:
     enum class State : int { Running = 0, Done = 1, Failed = 2, Cancelled = 3 };
 
     explicit ExportJob(ExportParams p);
@@ -52,7 +52,7 @@ public:
     std::string error() const;
     std::string phase() const;
 
-private:
+   private:
     void run();
     bool runImpl(std::string* err);
     void setPhase(const char* p);

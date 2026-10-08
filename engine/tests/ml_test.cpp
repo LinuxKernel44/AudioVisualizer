@@ -23,7 +23,8 @@ TEST(LogMel, MatchesTorchaudioReference) {
     std::vector<float> x(static_cast<size_t>(sr * 2));
     for (size_t n = 0; n < x.size(); ++n) {
         const double t = static_cast<double>(n);
-        x[n] = static_cast<float>(0.5 * std::sin(2 * M_PI * 440.0 * t / sr) + 0.25 * std::sin(2 * M_PI * 3000.0 * t / sr) +
+        x[n] = static_cast<float>(0.5 * std::sin(2 * M_PI * 440.0 * t / sr) +
+                                  0.25 * std::sin(2 * M_PI * 3000.0 * t / sr) +
                                   (n > 11025 ? 0.2 * std::sin(2 * M_PI * 80.0 * t / sr) : 0.0));
     }
     av::LogMel lm;
@@ -38,7 +39,8 @@ TEST(LogMel, MatchesTorchaudioReference) {
     ASSERT_EQ(frames.size(), kRefFrames * 128);
     for (size_t k = 0; k < sizeof(kRefRows) / sizeof(kRefRows[0]); ++k)
         for (size_t m = 0; m < 128; ++m)
-            EXPECT_NEAR(frames[kRefRows[k] * 128 + m], kRefLogMel[k][m], 2e-3f) << "frame " << kRefRows[k] << " mel " << m;
+            EXPECT_NEAR(frames[kRefRows[k] * 128 + m], kRefLogMel[k][m], 2e-3f)
+                << "frame " << kRefRows[k] << " mel " << m;
     double sum = 0;
     for (float v : frames) sum += v;
     EXPECT_NEAR(sum / kRefSum, 1.0, 1e-4);
@@ -76,15 +78,21 @@ TEST(Resampler, PreservesInBandTonesAndRejectsAliases) {
         std::vector<float> x(n);
         for (size_t i = 0; i < n; ++i) {
             const double t = static_cast<double>(i) / inRate;
-            x[i] = static_cast<float>(0.5 * std::sin(2 * M_PI * 1000.0 * t) + (inRate > 30000 ? 0.4 * std::sin(2 * M_PI * 15000.0 * t) : 0.0));
+            x[i] =
+                static_cast<float>(0.5 * std::sin(2 * M_PI * 1000.0 * t) +
+                                   (inRate > 30000 ? 0.4 * std::sin(2 * M_PI * 15000.0 * t) : 0.0));
         }
         av::Resampler rs(inRate, 22050.0);
         std::vector<float> y;
-        for (size_t i = 0; i < n; i += 3001) rs.process(x.data() + i, std::min<size_t>(3001, n - i), &y);
+        for (size_t i = 0; i < n; i += 3001)
+            rs.process(x.data() + i, std::min<size_t>(3001, n - i), &y);
         rs.finish(&y);
-        EXPECT_NEAR(static_cast<double>(y.size()), static_cast<double>(n) * 22050.0 / inRate, 4.0) << inRate;
+        EXPECT_NEAR(static_cast<double>(y.size()), static_cast<double>(n) * 22050.0 / inRate, 4.0)
+            << inRate;
         EXPECT_NEAR(toneAmplitude(y, 22050.0, 1000.0), 0.5, 0.01) << inRate;
-        if (inRate > 30000) EXPECT_LT(toneAmplitude(y, 22050.0, 22050.0 - 15000.0), 0.01) << "alias at " << inRate;  // 15 kHz folds to 7.05 kHz
+        if (inRate > 30000)
+            EXPECT_LT(toneAmplitude(y, 22050.0, 22050.0 - 15000.0), 0.01)
+                << "alias at " << inRate;  // 15 kHz folds to 7.05 kHz
     }
 }
 
@@ -146,7 +154,9 @@ TEST_P(ChunkTest, AggregatesEveryFrameInPlaceWithBoundedChunks) {
     EXPECT_GE(calls, 1u);
 }
 
-INSTANTIATE_TEST_SUITE_P(Lengths, ChunkTest, ::testing::Values<size_t>(1, 20, 300, 1000, 1488, 1489, 1494, 1495, 1500, 1501, 2980, 2982, 2990, 4500, 7777, 15000));
+INSTANTIATE_TEST_SUITE_P(Lengths, ChunkTest,
+                         ::testing::Values<size_t>(1, 20, 300, 1000, 1488, 1489, 1494, 1495, 1500,
+                                                   1501, 2980, 2982, 2990, 4500, 7777, 15000));
 
 TEST(ChunkedInference, PropagatesPredictorFailure) {
     av::ChunkedBeatInference inf([](const float*, size_t, float*, float*) { return false; });
@@ -160,9 +170,11 @@ TEST(ChunkedInference, PropagatesPredictorFailure) {
 // ---- Post-processing against the official minimal postprocessor --------------------------------
 
 TEST(Postprocess, MatchesOfficialMinimalPostprocessor) {
-    std::vector<float> beat(kPostBeatLogits, kPostBeatLogits + kPostT), down(kPostDownLogits, kPostDownLogits + kPostT);
+    std::vector<float> beat(kPostBeatLogits, kPostBeatLogits + kPostT),
+        down(kPostDownLogits, kPostDownLogits + kPostT);
     const auto bt = av::postprocessMinimal(beat, down);
-    const size_t nb = sizeof(kPostBeats) / sizeof(kPostBeats[0]), nd = sizeof(kPostDownbeats) / sizeof(kPostDownbeats[0]);
+    const size_t nb = sizeof(kPostBeats) / sizeof(kPostBeats[0]),
+                 nd = sizeof(kPostDownbeats) / sizeof(kPostDownbeats[0]);
     ASSERT_EQ(bt.beats.size(), nb);
     ASSERT_EQ(bt.downbeats.size(), nd);
     for (size_t i = 0; i < nb; ++i) EXPECT_NEAR(bt.beats[i], kPostBeats[i], 1e-5);
@@ -178,12 +190,14 @@ TEST(Postprocess, EmptyAndSilentInput) {
     EXPECT_TRUE(b.downbeats.empty());
 }
 
-// ---- Timeline mapping ----------------------------------------------------------------------------
+// ---- Timeline mapping
+// ----------------------------------------------------------------------------
 
 TEST(BeatTimeline, DerivesTempoMeterAndBarPositions) {
     av::BeatTimes bt;
-    for (int i = 0; i < 64; ++i) bt.beats.push_back(1.0 + 0.5 * i);          // 120 BPM
-    for (int i = 2; i < 64; i += 4) bt.downbeats.push_back(bt.beats[static_cast<size_t>(i)]);  // downbeat at beat 2, 6, ...
+    for (int i = 0; i < 64; ++i) bt.beats.push_back(1.0 + 0.5 * i);  // 120 BPM
+    for (int i = 2; i < 64; i += 4)
+        bt.downbeats.push_back(bt.beats[static_cast<size_t>(i)]);  // downbeat at beat 2, 6, ...
     av::Timeline t;
     t.durationSec = 40;
     ASSERT_TRUE(av::applyMlBeats(bt, &t));
@@ -278,7 +292,8 @@ TEST(BeatTimeline, AlignmentScorePrefersBeatsOnThePulse) {
 TEST(BeatTimeline, RejectsRegularButMisplacedModelGrid) {
     av::Timeline t = pulseTimeline();
     av::BeatTimes shifted;
-    for (int i = 0; i < 70; ++i) shifted.beats.push_back(0.75 + 0.5 * i);  // regular, but between the pulses
+    for (int i = 0; i < 70; ++i)
+        shifted.beats.push_back(0.75 + 0.5 * i);  // regular, but between the pulses
     EXPECT_FALSE(av::applyMlBeats(shifted, &t));
     EXPECT_EQ(t.beatSource, 0u);
     av::BeatTimes aligned;

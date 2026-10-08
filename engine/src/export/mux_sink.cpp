@@ -51,7 +51,8 @@ bool MuxSink::write(int track, const uint8_t* data, const AMediaCodecBufferInfo&
         pending_.push_back(std::move(p));
         return true;
     }
-    return AMediaMuxer_writeSampleData(muxer_, static_cast<size_t>(track), data, &info) == AMEDIA_OK;
+    return AMediaMuxer_writeSampleData(muxer_, static_cast<size_t>(track), data, &info) ==
+           AMEDIA_OK;
 }
 
 bool MuxSink::finish() {

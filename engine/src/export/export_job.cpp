@@ -23,12 +23,14 @@ namespace av {
 namespace {
 
 constexpr double kVisualLookaheadSec = 0.02;  // the FFT window ends ~half a window before "now"
-constexpr double kAudioLeadSec = 0.5;         // keep the AAC encoder fed this far ahead of the video
+constexpr double kAudioLeadSec = 0.5;  // keep the AAC encoder fed this far ahead of the video
 
 /// Sliding buffer of decoded stereo PCM addressed by absolute frame index.
 class PcmWindow {
-public:
-    void append(const float* stereo, size_t frames) { buf_.insert(buf_.end(), stereo, stereo + frames * 2); }
+   public:
+    void append(const float* stereo, size_t frames) {
+        buf_.insert(buf_.end(), stereo, stereo + frames * 2);
+    }
     int64_t endFrame() const { return base_ + static_cast<int64_t>(buf_.size() / 2); }
     const float* at(int64_t frame) const { return buf_.data() + (frame - base_) * 2; }
     void dropBefore(int64_t frame) {
@@ -38,7 +40,7 @@ public:
         base_ += static_cast<int64_t>(n);
     }
 
-private:
+   private:
     std::vector<float> buf_;
     int64_t base_ = 0;
 };
@@ -56,7 +58,9 @@ ExportJob::~ExportJob() {
     if (p_.outFd >= 0) ::close(p_.outFd);
 }
 
-void ExportJob::start() { thread_ = std::thread([this] { run(); }); }
+void ExportJob::start() {
+    thread_ = std::thread([this] { run(); });
+}
 
 void ExportJob::cancel() {
     cancel_.store(true);
@@ -97,7 +101,9 @@ void ExportJob::run() {
 bool ExportJob::runImpl(std::string* err) {
     // ---- audio source + analysis ------------------------------------------------------------
     setPhase("Analyzing audio");
-    auto timeline = analyzeFileCached(p_.audioFd, p_.cacheDir, &cancel_, [this](float f) { progress_.store(f * 0.15f); }, nullptr, err, p_.modelPath);
+    auto timeline = analyzeFileCached(
+        p_.audioFd, p_.cacheDir, &cancel_, [this](float f) { progress_.store(f * 0.15f); }, nullptr,
+        err, p_.modelPath);
     if (!timeline) return false;
     if (cancel_.load()) return false;
 
@@ -116,12 +122,14 @@ bool ExportJob::runImpl(std::string* err) {
     // ---- pipeline objects -------------------------------------------------------------------
     setPhase("Preparing");
     OffscreenRenderer renderer;
-    if (!renderer.create(static_cast<uint32_t>(p_.width), static_cast<uint32_t>(p_.height), p_.renderScale)) {
+    if (!renderer.create(static_cast<uint32_t>(p_.width), static_cast<uint32_t>(p_.height),
+                         p_.renderScale)) {
         *err = "could not create the GPU renderer for this resolution";
         return false;
     }
     if (!p_.overlay.empty()) renderer.setOverlay(p_.overlay.data(), p_.overlayW, p_.overlayH);
-    if (!p_.background.empty()) renderer.setBackground(p_.background.data(), p_.backgroundW, p_.backgroundH);
+    if (!p_.background.empty())
+        renderer.setBackground(p_.background.data(), p_.backgroundW, p_.backgroundH);
     renderer.setBrandingOpacity(p_.overlayOpacity, p_.backgroundOpacity);
     MuxSink mux;
     if (!mux.open(p_.outFd, 2)) {
@@ -191,8 +199,10 @@ bool ExportJob::runImpl(std::string* err) {
         const int64_t feTarget = static_cast<int64_t>((t + kVisualLookaheadSec) * sr);
         const int64_t aacTarget = static_cast<int64_t>((t + kAudioLeadSec) * sr);
         decodeUntil(std::max(feTarget, aacTarget));
-        if (i < 3) LOGI("frame %lld: decoded to %lld, fe=%lld aac=%lld", static_cast<long long>(i),
-                        static_cast<long long>(pcm.endFrame()), static_cast<long long>(fePos), static_cast<long long>(aacPos));
+        if (i < 3)
+            LOGI("frame %lld: decoded to %lld, fe=%lld aac=%lld", static_cast<long long>(i),
+                 static_cast<long long>(pcm.endFrame()), static_cast<long long>(fePos),
+                 static_cast<long long>(aacPos));
 
         const int64_t feEnd = std::min(feTarget, pcm.endFrame());
         if (feEnd > fePos) {
@@ -215,8 +225,10 @@ bool ExportJob::runImpl(std::string* err) {
         if (!err->empty()) return false;
 
         if ((i & 7) == 0) {
-            progress_.store(0.15f + 0.85f * static_cast<float>(i) / static_cast<float>(totalFrames));
-            const double el = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            progress_.store(0.15f +
+                            0.85f * static_cast<float>(i) / static_cast<float>(totalFrames));
+            const double el =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
             if (el > 0.5) renderFps_.store(static_cast<float>(static_cast<double>(i + 1) / el));
         }
     }
@@ -242,9 +254,10 @@ bool ExportJob::runImpl(std::string* err) {
         *err = "could not finalize the MP4 file";
         return false;
     }
-    const double total = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-    LOGI("exported %lld frames (%.1f s of video) in %.1f s = %.2fx real time", static_cast<long long>(totalFrames),
-         duration, total, duration / std::max(total, 1e-3));
+    const double total =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    LOGI("exported %lld frames (%.1f s of video) in %.1f s = %.2fx real time",
+         static_cast<long long>(totalFrames), duration, total, duration / std::max(total, 1e-3));
     return true;
 }
 

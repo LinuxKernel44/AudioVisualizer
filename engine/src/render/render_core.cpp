@@ -23,7 +23,8 @@
 namespace av {
 
 namespace {
-void fillFrameData(FrameData* d, const VisualState& vs, VkExtent2D ext, float time, float dt, float overlayOpacity, float backgroundOpacity) {
+void fillFrameData(FrameData* d, const VisualState& vs, VkExtent2D ext, float time, float dt,
+                   float overlayOpacity, float backgroundOpacity) {
     std::memset(d, 0, sizeof(*d));
     d->res[0] = static_cast<float>(ext.width);
     d->res[1] = static_cast<float>(ext.height);
@@ -63,13 +64,15 @@ bool RenderCore::create(vk::Context* ctx) {
     b.binding = 0;
     b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     b.descriptorCount = 1;
-    b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+    b.stageFlags =
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
     VkDescriptorSetLayoutCreateInfo dl{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
     dl.bindingCount = 1;
     dl.pBindings = &b;
     VK_TRY(vkCreateDescriptorSetLayout(ctx->dev, &dl, nullptr, &frameLayout_));
 
-    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 16}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16}};
+    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 16},
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16}};
     VkDescriptorPoolCreateInfo dp{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     dp.maxSets = 32;
     dp.poolSizeCount = 2;
@@ -85,7 +88,9 @@ bool RenderCore::create(vk::Context* ctx) {
         VkFenceCreateInfo fi{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         VK_TRY(vkCreateFence(ctx->dev, &fi, nullptr, &s.fence));
-        if (!vk::createBuffer(*ctx, sizeof(FrameData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true, &s.ubo)) return false;
+        if (!vk::createBuffer(*ctx, sizeof(FrameData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true,
+                              &s.ubo))
+            return false;
         std::memset(s.ubo.mapped, 0, sizeof(FrameData));
         VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
         dai.descriptorPool = dpool_;
@@ -136,11 +141,12 @@ void RenderCore::destroy() {
     ctx_ = nullptr;
 }
 
-void RenderCore::record(uint32_t i, const VisualState& vs, float timeSec, float dt, VkFramebuffer fb,
-                        VkExtent2D extent, VkRenderPass pass, float quality) {
+void RenderCore::record(uint32_t i, const VisualState& vs, float timeSec, float dt,
+                        VkFramebuffer fb, VkExtent2D extent, VkRenderPass pass, float quality) {
     Slot& s = slot(i);
     const VkExtent2D internal = post_.extent();
-    fillFrameData(static_cast<FrameData*>(s.ubo.mapped), vs, internal, timeSec, dt, overlayOpacity_, backgroundOpacity_);
+    fillFrameData(static_cast<FrameData*>(s.ubo.mapped), vs, internal, timeSec, dt, overlayOpacity_,
+                  backgroundOpacity_);
 
     Scene* a = scenes_[vs.sceneA % scenes_.size()].get();
     Scene* b = scenes_[vs.sceneB % scenes_.size()].get();

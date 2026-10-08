@@ -13,7 +13,7 @@ namespace av {
 /// Fixed-size worker pool. Tasks run in FIFO order; waitIdle() blocks until the queue is empty
 /// and every worker is idle.
 class ThreadPool {
-public:
+   public:
     explicit ThreadPool(size_t threads) {
         threads = threads == 0 ? 1 : threads;
         for (size_t i = 0; i < threads; ++i) workers_.emplace_back([this] { loop(); });
@@ -44,7 +44,7 @@ public:
         idleCv_.wait(lk, [this] { return queue_.empty() && active_ == 0; });
     }
 
-private:
+   private:
     void loop() {
         for (;;) {
             std::function<void()> task;

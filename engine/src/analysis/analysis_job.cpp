@@ -19,12 +19,12 @@
 
 namespace av {
 
-/// Bump whenever the analysis algorithms change in a way that alters results, so stale cache entries
-/// are ignored. (Rev 3: ML beat gates for regularity and onset alignment.)
+/// Bump whenever the analysis algorithms change in a way that alters results, so stale cache
+/// entries are ignored. (Rev 3: ML beat gates for regularity and onset alignment.)
 constexpr int kAnalysisRevision = 3;
 
 uint64_t fingerprintFd(int fd) {
-    struct stat st {};
+    struct stat st{};
     if (fstat(fd, &st) != 0) return 0;
     uint64_t h = 1469598103934665603ull ^ static_cast<uint64_t>(st.st_size);
     auto mix = [&](const uint8_t* p, size_t n) {
@@ -38,9 +38,11 @@ uint64_t fingerprintFd(int fd) {
     std::vector<uint8_t> buf(kBlock);
     const off_t size = st.st_size;
     for (int i = 0; i < kBlocks; ++i) {
-        const off_t off = size > static_cast<off_t>(kBlock) * kBlocks
-                              ? static_cast<off_t>((static_cast<double>(size - static_cast<off_t>(kBlock)) * i) / (kBlocks - 1))
-                              : static_cast<off_t>(i) * static_cast<off_t>(kBlock);
+        const off_t off =
+            size > static_cast<off_t>(kBlock) * kBlocks
+                ? static_cast<off_t>((static_cast<double>(size - static_cast<off_t>(kBlock)) * i) /
+                                     (kBlocks - 1))
+                : static_cast<off_t>(i) * static_cast<off_t>(kBlock);
         if (off >= size) break;
         const ssize_t n = pread(fd, buf.data(), kBlock, off);
         if (n > 0) mix(buf.data(), static_cast<size_t>(n));
@@ -82,14 +84,16 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
                 std::fclose(mf);
             }
         }
-        std::snprintf(name, sizeof name, "/%016llx-%s%llu-r%d.avt", static_cast<unsigned long long>(fingerprintFd(fd)),
-                      useMl ? "ml" : "dsp", modelTag, kAnalysisRevision);
+        std::snprintf(name, sizeof name, "/%016llx-%s%llu-r%d.avt",
+                      static_cast<unsigned long long>(fingerprintFd(fd)), useMl ? "ml" : "dsp",
+                      modelTag, kAnalysisRevision);
         cachePath = cacheDir + name;
         if (FILE* f = std::fopen(cachePath.c_str(), "rb")) {
             std::vector<uint8_t> bytes;
             uint8_t tmp[65536];
             size_t n;
-            while ((n = std::fread(tmp, 1, sizeof tmp, f)) > 0) bytes.insert(bytes.end(), tmp, tmp + n);
+            while ((n = std::fread(tmp, 1, sizeof tmp, f)) > 0)
+                bytes.insert(bytes.end(), tmp, tmp + n);
             std::fclose(f);
             auto t = std::make_shared<Timeline>();
             std::string err;
@@ -124,7 +128,8 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
                 LOGE("beat model unavailable, keeping the DSP rhythm: %s", merr.c_str());
                 return;
             }
-            if (!applyMlBeats(bt, &tl)) LOGI("beat model found no usable beats, keeping the DSP rhythm");
+            if (!applyMlBeats(bt, &tl))
+                LOGI("beat model found no usable beats, keeping the DSP rhythm");
         };
     }
     auto t = std::make_shared<Timeline>();
@@ -143,8 +148,10 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
         if (FILE* f = std::fopen(tmp.c_str(), "wb")) {
             const bool ok = std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
             std::fclose(f);
-            if (ok) std::rename(tmp.c_str(), cachePath.c_str());
-            else std::remove(tmp.c_str());
+            if (ok)
+                std::rename(tmp.c_str(), cachePath.c_str());
+            else
+                std::remove(tmp.c_str());
         }
     }
     return t;
@@ -153,7 +160,8 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
 void AnalysisJob::run(int fd, std::string cacheDir, std::string modelPath) {
     bool cached = false;
     std::string err;
-    auto t = analyzeFileCached(fd, cacheDir, &cancel_, [this](float p) { progress_.store(p); }, &cached, &err, modelPath);
+    auto t = analyzeFileCached(
+        fd, cacheDir, &cancel_, [this](float p) { progress_.store(p); }, &cached, &err, modelPath);
     ::close(fd);
     if (!t) {
         LOGE("analysis failed: %s", err.c_str());

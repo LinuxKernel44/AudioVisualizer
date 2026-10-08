@@ -1,10 +1,10 @@
+#include "av/dsp/spectrum.h"
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cmath>
 #include <vector>
-
-#include "av/dsp/spectrum.h"
 
 namespace {
 std::vector<float> sine(double hz, double sr, size_t n, float amp = 1.f) {

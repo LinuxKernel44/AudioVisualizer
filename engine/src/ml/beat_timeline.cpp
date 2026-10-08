@@ -1,9 +1,9 @@
 #include "av/ml/beat_timeline.h"
 
-#include "av/analysis/rhythm.h"
-
 #include <algorithm>
 #include <cmath>
+
+#include "av/analysis/rhythm.h"
 
 namespace av {
 
@@ -31,7 +31,8 @@ float beatAlignmentScore(const Timeline& t, const std::vector<float>& beats) {
         const long c = std::lround(static_cast<double>(b) * t.frameRate);
         if (c < 0 || c >= static_cast<long>(n)) continue;
         float best = 0.f;
-        for (long k = std::max<long>(0, c - tol); k <= std::min<long>(static_cast<long>(n) - 1, c + tol); ++k)
+        for (long k = std::max<long>(0, c - tol);
+             k <= std::min<long>(static_cast<long>(n) - 1, c + tol); ++k)
             best = std::max(best, env[static_cast<size_t>(k)]);
         sum += best;
         ++cnt;
@@ -69,7 +70,8 @@ bool applyMlBeats(const BeatTimes& bt, Timeline* t) {
     t->bpm = static_cast<float>(60.0 / med);
     double dev = 0;
     for (double d : ibi) dev += std::fabs(d - med);
-    t->bpmConfidence = static_cast<float>(std::clamp(1.0 - (dev / static_cast<double>(ibi.size())) / med * 4.0, 0.0, 1.0));
+    t->bpmConfidence = static_cast<float>(
+        std::clamp(1.0 - (dev / static_cast<double>(ibi.size())) / med * 4.0, 0.0, 1.0));
 
     // Tempo curve: median inter-beat interval within +-4 s of each 2 s step.
     t->tempoCurveStepSec = 2.f;
@@ -86,14 +88,16 @@ bool applyMlBeats(const BeatTimes& bt, Timeline* t) {
     std::vector<size_t> downIdx;
     for (double d : bt.downbeats) {
         auto it = std::lower_bound(bt.beats.begin(), bt.beats.end(), d - 1e-6);
-        if (it != bt.beats.end() && std::fabs(*it - d) < 1e-3) downIdx.push_back(static_cast<size_t>(it - bt.beats.begin()));
+        if (it != bt.beats.end() && std::fabs(*it - d) < 1e-3)
+            downIdx.push_back(static_cast<size_t>(it - bt.beats.begin()));
     }
     t->beatBar.assign(nb, 0);
     t->beatsPerBar = 4;
     t->downbeatConfidence = 0.f;
     if (downIdx.size() >= 2) {
         std::vector<double> gaps;
-        for (size_t i = 1; i < downIdx.size(); ++i) gaps.push_back(static_cast<double>(downIdx[i] - downIdx[i - 1]));
+        for (size_t i = 1; i < downIdx.size(); ++i)
+            gaps.push_back(static_cast<double>(downIdx[i] - downIdx[i - 1]));
         const int bpb = std::clamp(static_cast<int>(std::lround(medianOf(gaps))), 2, 12);
         t->beatsPerBar = static_cast<uint32_t>(bpb);
         size_t consistent = 0;
@@ -108,13 +112,16 @@ bool applyMlBeats(const BeatTimes& bt, Timeline* t) {
                 ++d;
             } else if (d == 0) {
                 const size_t back = downIdx[0] - i;
-                t->beatBar[i] = static_cast<uint8_t>((static_cast<size_t>(bpb) - back % static_cast<size_t>(bpb)) % static_cast<size_t>(bpb));
+                t->beatBar[i] = static_cast<uint8_t>(
+                    (static_cast<size_t>(bpb) - back % static_cast<size_t>(bpb)) %
+                    static_cast<size_t>(bpb));
             } else {
                 t->beatBar[i] = static_cast<uint8_t>((t->beatBar[i - 1] + 1) % bpb);
             }
         }
     } else {
-        for (size_t i = 0; i < nb; ++i) t->beatBar[i] = static_cast<uint8_t>(i % 4);  // no downbeats: assume 4/4
+        for (size_t i = 0; i < nb; ++i)
+            t->beatBar[i] = static_cast<uint8_t>(i % 4);  // no downbeats: assume 4/4
     }
     t->beatSource = 1;
     return true;

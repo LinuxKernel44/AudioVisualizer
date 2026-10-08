@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "presets": [
+    { "name": "Balanced", "scene": -1,
+      "controls": { "sensitivity": 1.0, "gainBass": 0, "gainMid": 0, "gainTreble": 0, "smoothing": 0.3, "palette": -1, "beatFlash": 1.0, "bloom": 1.0 } },
+    { "name": "Club", "scene": -1,
+      "controls": { "sensitivity": 1.3, "gainBass": 4, "gainMid": 0, "gainTreble": 2, "smoothing": 0.15, "palette": 3, "beatFlash": 1.5, "bloom": 1.3 } },
+    { "name": "Chill", "scene": 1,
+      "controls": { "sensitivity": 0.9, "gainBass": -2, "gainMid": 2, "gainTreble": -3, "smoothing": 0.75, "palette": 4, "beatFlash": 0.5, "bloom": 1.1 } },
+    { "name": "Cinematic", "scene": 2,
+      "controls": { "sensitivity": 1.0, "gainBass": 3, "gainMid": 0, "gainTreble": -2, "smoothing": 0.6, "palette": 1, "beatFlash": 0.8, "bloom": 1.4 } },
+    { "name": "Glitch", "scene": 4,
+      "controls": { "sensitivity": 1.6, "gainBass": 2, "gainMid": 2, "gainTreble": 4, "smoothing": 0.05, "palette": 5, "beatFlash": 2.0, "bloom": 0.9 } },
+    { "name": "Minimal", "scene": 0,
+      "controls": { "sensitivity": 1.1, "gainBass": 0, "gainMid": 0, "gainTreble": 0, "smoothing": 0.4, "palette": 2, "beatFlash": 0.3, "bloom": 0.5 } }
+  ]
+}

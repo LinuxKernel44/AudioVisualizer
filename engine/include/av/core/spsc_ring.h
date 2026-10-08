@@ -10,7 +10,7 @@ namespace av {
 /// Capacity is rounded up to a power of two. Safe for use on a real-time thread.
 template <typename T>
 class SpscRing {
-public:
+   public:
     explicit SpscRing(size_t minCapacity) {
         size_t cap = 2;
         while (cap < minCapacity) cap <<= 1;
@@ -24,8 +24,8 @@ public:
         return head_.load(std::memory_order_acquire) - tail_.load(std::memory_order_relaxed);
     }
     size_t writeAvailable() const {
-        return capacity() - (head_.load(std::memory_order_relaxed) -
-                             tail_.load(std::memory_order_acquire));
+        return capacity() -
+               (head_.load(std::memory_order_relaxed) - tail_.load(std::memory_order_acquire));
     }
 
     /// Producer only. Writes up to n items, returns the number written.
@@ -57,7 +57,7 @@ public:
         return n;
     }
 
-private:
+   private:
     std::unique_ptr<T[]> data_;
     size_t mask_ = 0;
     alignas(64) std::atomic<size_t> head_{0};

@@ -17,7 +17,7 @@ namespace av {
 /// Real-time front end: pulls mono samples from the playback tap, drives a FrontEnd and publishes
 /// VisualState snapshots (~100 Hz while audio flows, ~60 Hz while idle so transitions continue).
 class SpectrumWorker {
-public:
+   public:
     struct Playback {
         std::function<double()> positionSec;
         std::function<bool()> playing;
@@ -36,7 +36,7 @@ public:
         settingsGen_.fetch_add(1);
     }
 
-private:
+   private:
     void run();
 
     SpscRing<float>& tap_;

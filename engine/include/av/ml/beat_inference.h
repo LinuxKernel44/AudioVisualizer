@@ -8,7 +8,8 @@ namespace av {
 
 /// Runs the beat model on `frames` log-mel frames (frames x 128, row major) and writes `frames`
 /// beat and downbeat logits. Returns false on failure.
-using BeatPredictor = std::function<bool(const float* spect, size_t frames, float* beatLogits, float* downbeatLogits)>;
+using BeatPredictor = std::function<bool(const float* spect, size_t frames, float* beatLogits,
+                                         float* downbeatLogits)>;
 
 struct BeatActivations {
     std::vector<float> beat;      // logits per frame
@@ -20,7 +21,7 @@ struct BeatActivations {
 /// `split_piece` / `aggregate_prediction` (chunk 1500, border 6, "keep_first"), but streaming,
 /// so only about two chunks of spectrogram are kept in memory regardless of track length.
 class ChunkedBeatInference {
-public:
+   public:
     static constexpr size_t kMels = 128;
     static constexpr size_t kChunk = 1500;
     static constexpr size_t kBorder = 6;
@@ -32,7 +33,7 @@ public:
     bool finish(BeatActivations* out);
     size_t framesReceived() const { return total_; }
 
-private:
+   private:
     bool runChunk(long long start);
     float* frameAt(long long f) { return buf_.data() + static_cast<size_t>(f - base_) * kMels; }
 
@@ -54,7 +55,7 @@ struct BeatTimes {
 
 /// Beat This!'s "minimal" post-processing: +-3-frame maxima above logit 0, adjacent peaks merged,
 /// downbeats snapped to the nearest beat.
-BeatTimes postprocessMinimal(const std::vector<float>& beatLogits, const std::vector<float>& downbeatLogits,
-                             double fps = 50.0);
+BeatTimes postprocessMinimal(const std::vector<float>& beatLogits,
+                             const std::vector<float>& downbeatLogits, double fps = 50.0);
 
 }  // namespace av

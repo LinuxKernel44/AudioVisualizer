@@ -9,7 +9,7 @@ namespace av {
 /// Hann-windowed real FFT returning linear amplitude spectra (a unit sine peaks near 1.0).
 /// Instances are not thread-safe; use one per thread.
 class Stft {
-public:
+   public:
     explicit Stft(size_t fftSize);
     ~Stft();
     Stft(const Stft&) = delete;
@@ -20,7 +20,7 @@ public:
     /// `in` holds fftSize samples; `mag` receives numBins amplitudes.
     void magnitude(const float* in, float* mag);
 
-private:
+   private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
     size_t n_;

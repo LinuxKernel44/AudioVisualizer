@@ -13,7 +13,7 @@ namespace av {
 /// NV12 on the GPU. Frames are pipelined two deep: while frame N renders, frame N-1's pixels are
 /// handed to the sink. Output is a pure function of the VisualState and the supplied time.
 class OffscreenRenderer {
-public:
+   public:
     using FrameSink = std::function<void(int64_t frameIndex, const uint8_t* nv12)>;
 
     ~OffscreenRenderer() { destroy(); }
@@ -23,11 +23,18 @@ public:
     void destroy();
 
     /// Branding layers; call after create() and before the first render().
-    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) { return core_.setOverlay(rgba, w, h); }
-    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) { return core_.setBackground(rgba, w, h); }
-    void setBrandingOpacity(float overlay, float background) { core_.setBrandingOpacity(overlay, background); }
+    bool setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) {
+        return core_.setOverlay(rgba, w, h);
+    }
+    bool setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) {
+        return core_.setBackground(rgba, w, h);
+    }
+    void setBrandingOpacity(float overlay, float background) {
+        core_.setBrandingOpacity(overlay, background);
+    }
 
-    bool render(int64_t frameIndex, const VisualState& vs, float timeSec, float dt, const FrameSink& sink);
+    bool render(int64_t frameIndex, const VisualState& vs, float timeSec, float dt,
+                const FrameSink& sink);
     /// Delivers the frame still in flight (call after the last render()).
     bool flush(const FrameSink& sink);
 
@@ -35,14 +42,14 @@ public:
     uint32_t width() const { return w_; }
     uint32_t height() const { return h_; }
 
-private:
+   private:
     struct Slot {
         vk::Image final;
         VkFramebuffer fb = VK_NULL_HANDLE;
         vk::Buffer storage;   // device local, written by the compute shader
         vk::Buffer readback;  // host visible, filled by a copy
         VkDescriptorSet set = VK_NULL_HANDLE;
-        int64_t frame = -1;   // frame currently in flight in this slot
+        int64_t frame = -1;  // frame currently in flight in this slot
         bool pending = false;
     };
     bool deliver(Slot& s, const FrameSink& sink);

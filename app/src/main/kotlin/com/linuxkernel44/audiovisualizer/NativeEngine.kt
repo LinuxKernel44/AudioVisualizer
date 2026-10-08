@@ -21,6 +21,7 @@ class NativeEngine {
     fun setTargetFps(fps: Float) = setTargetFps(handle, fps)
     fun setThermalLevel(level: Int) = setThermalLevel(handle, level)
     fun setAutoScale(on: Boolean) = setAutoScale(handle, on)
+    fun setPowerSaver(on: Boolean) = setPowerSaver(handle, on)
     /** [frameMs, gpuMs, renderScale, targetFps] */
     fun perf(): FloatArray = perf(handle)
     fun setScene(index: Int) = setScene(handle, index)
@@ -60,6 +61,7 @@ class NativeEngine {
     private external fun setTargetFps(h: Long, fps: Float)
     private external fun setThermalLevel(h: Long, level: Int)
     private external fun setAutoScale(h: Long, on: Boolean)
+    private external fun setPowerSaver(h: Long, on: Boolean)
     private external fun perf(h: Long): FloatArray
     private external fun setScene(h: Long, index: Int)
     private external fun sceneIndex(h: Long): Int

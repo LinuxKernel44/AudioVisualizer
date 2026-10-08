@@ -110,6 +110,110 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- settings, presets, updates -------------------------------------------------------------
+    private val settingsPrefs = app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+    var showSettings by mutableStateOf(false)
+    var batterySaver by mutableStateOf(settingsPrefs.getBoolean("batterySaver", false))
+        private set
+    var autoResolution by mutableStateOf(settingsPrefs.getBoolean("autoResolution", true))
+        private set
+    private val presetStore = PresetStore(app)
+    var presets by mutableStateOf(presetStore.all())
+        private set
+    private val tokenStore = TokenStore(app)
+    var hasToken by mutableStateOf(tokenStore.has())
+        private set
+    var updateStatus by mutableStateOf("")
+        private set
+    var updating by mutableStateOf(false)
+        private set
+    var cacheBytes by mutableStateOf(0L)
+        private set
+
+    fun setBatterySaverEnabled(on: Boolean) {
+        batterySaver = on
+        settingsPrefs.edit().putBoolean("batterySaver", on).apply()
+        engine.setPowerSaver(on)
+    }
+
+    fun setAutoResolutionEnabled(on: Boolean) {
+        autoResolution = on
+        settingsPrefs.edit().putBoolean("autoResolution", on).apply()
+        engine.setAutoScale(on)
+    }
+
+    fun openSettings() {
+        showSettings = true
+        refreshCache()
+    }
+
+    private fun cacheDir() = java.io.File(getApplication<Application>().cacheDir, "analysis")
+
+    fun refreshCache() {
+        worker.execute { cacheBytes = cacheDir().listFiles()?.sumOf { it.length() } ?: 0L }
+    }
+
+    fun clearCache() {
+        worker.execute {
+            cacheDir().listFiles()?.forEach { it.delete() }
+            cacheBytes = 0L
+        }
+    }
+
+    fun applyPreset(p: Preset) {
+        selectScene(p.scene)
+        updateControls(p.controls)
+    }
+
+    fun savePreset(name: String) {
+        if (name.isBlank()) return
+        presetStore.save(Preset(name.trim().take(40), scene, controls))
+        presets = presetStore.all()
+    }
+
+    fun deletePreset(name: String) {
+        presetStore.delete(name)
+        presets = presetStore.all()
+    }
+
+    fun exportPresetsJson(): String = presetStore.exportUserJson()
+
+    fun importPresets(ctx: android.content.Context, uri: Uri) {
+        worker.execute {
+            updateStatus = try {
+                val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(512 * 1024) } ?: throw IllegalStateException("Cannot read the file")
+                "Imported ${presetStore.import(text)} preset(s)."
+            } catch (e: Exception) {
+                "Import failed: ${e.message}"
+            }
+            presets = presetStore.all()
+        }
+    }
+
+    fun saveToken(t: String) {
+        tokenStore.save(t)
+        hasToken = tokenStore.has()
+    }
+
+    fun clearToken() {
+        tokenStore.clear()
+        hasToken = false
+    }
+
+    fun checkPresetUpdates() {
+        if (updating) return
+        updating = true
+        updateStatus = "Checking…"
+        worker.execute {
+            updateStatus = when (val r = PresetUpdater.update(presetStore, tokenStore.load())) {
+                is PresetUpdater.Result.Updated -> "Updated: ${r.count} preset(s)."
+                is PresetUpdater.Result.Failed -> r.message
+            }
+            presets = presetStore.all()
+            updating = false
+        }
+    }
+
     var showControls by mutableStateOf(false)
     var showPerf by mutableStateOf(false)
     var perfText by mutableStateOf("")
@@ -136,6 +240,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         engine.setControls(controls)
+        engine.setPowerSaver(batterySaver)
+        engine.setAutoScale(autoResolution)
         engine.setBeatModel(BeatModel.path(app))
         engine.setBrandingOpacity(branding.overlayOpacity, if (branding.hasBackground) branding.backgroundOpacity else 0f)
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }

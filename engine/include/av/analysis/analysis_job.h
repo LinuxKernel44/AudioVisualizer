@@ -14,7 +14,7 @@ namespace av {
 /// Runs the offline analysis for one file on a background thread, with an on-disk cache keyed
 /// by a content fingerprint of the file. Safe to poll from any thread.
 class AnalysisJob {
-public:
+   public:
     enum class State : int { Idle = 0, Running = 1, Done = 2, Failed = 3 };
 
     AnalysisJob() = default;
@@ -43,7 +43,7 @@ public:
         return result_;
     }
 
-private:
+   private:
     void run(int fd, std::string cacheDir, std::string modelPath);
 
     std::thread thread_;

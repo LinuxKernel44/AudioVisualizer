@@ -24,7 +24,8 @@ namespace av {
 bool beatModelAvailable() { return true; }
 
 bool runBeatModelPass(int fd, const std::string& modelPath, const std::atomic<bool>* cancel,
-                      const std::function<void(float)>& progress, BeatTimes* out, std::string* error) {
+                      const std::function<void(float)>& progress, BeatTimes* out,
+                      std::string* error) {
     auto fail = [&](const std::string& m) {
         if (error) *error = m;
         LOGE("%s", m.c_str());
@@ -69,10 +70,13 @@ bool runBeatModelPass(int fd, const std::string& modelPath, const std::atomic<bo
         } else {
             mel.push(mono.data(), n, &frames);
         }
-        if (!frames.empty() && !inf.push(frames.data(), frames.size() / ChunkedBeatInference::kMels))
+        if (!frames.empty() &&
+            !inf.push(frames.data(), frames.size() / ChunkedBeatInference::kMels))
             return fail("beat model inference failed: " + model.lastError());
         consumed += static_cast<int64_t>(n);
-        if (progress && durationSec > 0) progress(static_cast<float>(std::min(0.98, static_cast<double>(consumed) / dec.sampleRate() / durationSec)));
+        if (progress && durationSec > 0)
+            progress(static_cast<float>(
+                std::min(0.98, static_cast<double>(consumed) / dec.sampleRate() / durationSec)));
     }
     frames.clear();
     if (resample) {
@@ -86,16 +90,18 @@ bool runBeatModelPass(int fd, const std::string& modelPath, const std::atomic<bo
     BeatActivations act;
     if (!inf.finish(&act)) return fail("beat model inference failed: " + model.lastError());
     *out = postprocessMinimal(act.beat, act.downbeat, act.fps);
-    LOGI("beat model: %zu beats, %zu downbeats in %.2f s (%zu chunk(s)) for %.1f s of audio", out->beats.size(),
-         out->downbeats.size(), std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), calls, durationSec);
+    LOGI("beat model: %zu beats, %zu downbeats in %.2f s (%zu chunk(s)) for %.1f s of audio",
+         out->beats.size(), out->downbeats.size(),
+         std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), calls,
+         durationSec);
     return true;
 }
 
 #else
 
 bool beatModelAvailable() { return false; }
-bool runBeatModelPass(int, const std::string&, const std::atomic<bool>*, const std::function<void(float)>&, BeatTimes*,
-                      std::string* error) {
+bool runBeatModelPass(int, const std::string&, const std::atomic<bool>*,
+                      const std::function<void(float)>&, BeatTimes*, std::string* error) {
     if (error) *error = "this build has no ONNX Runtime";
     return false;
 }

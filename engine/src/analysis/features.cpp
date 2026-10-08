@@ -98,7 +98,8 @@ struct FeatureExtractor::Impl {
         }
         dct = dctBasis(13, cfg.numMel);
         for (size_t i = 0; i < kBandEdgesHz.size(); ++i)
-            bandBin[i] = std::min(bins - 1, static_cast<size_t>(std::lround(kBandEdgesHz[i] / binHz)));
+            bandBin[i] =
+                std::min(bins - 1, static_cast<size_t>(std::lround(kBandEdgesHz[i] / binHz)));
         chromaOf.assign(bins, -1);
         binLogFreq.assign(bins, 0.f);
         for (size_t b = 1; b < bins; ++b) {
@@ -116,7 +117,8 @@ struct FeatureExtractor::Impl {
     }
 };
 
-FeatureExtractor::FeatureExtractor(const AnalysisConfig& cfg) : impl_(std::make_unique<Impl>(cfg)) {}
+FeatureExtractor::FeatureExtractor(const AnalysisConfig& cfg)
+    : impl_(std::make_unique<Impl>(cfg)) {}
 FeatureExtractor::~FeatureExtractor() = default;
 
 ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const float* segL,
@@ -133,7 +135,7 @@ ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const f
     for (auto& c : out.ch) c.assign(count, 0.f);
     out.chromaSum.assign(12, 0.f);
 
-    std::vector<float> logMel(total * M);        // log-compressed mel spectrogram
+    std::vector<float> logMel(total * M);  // log-compressed mel spectrogram
     std::vector<float> mono(N), mag(bins);
     std::vector<float> chroma(count * 12, 0.f);
     std::vector<float> cep(count * 13, 0.f);
@@ -164,16 +166,20 @@ ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const f
                 logSum += std::log(a);
                 ++nb;
             }
-            if (I.chromaOf[k] >= 0) chroma[o * 12 + static_cast<size_t>(I.chromaOf[k])] += static_cast<float>(a * a);
+            if (I.chromaOf[k] >= 0)
+                chroma[o * 12 + static_cast<size_t>(I.chromaOf[k])] += static_cast<float>(a * a);
         }
-        out.ch[static_cast<size_t>(Ch::Centroid)][o] = sumMag > 1e-9 ? static_cast<float>(sumMagF / sumMag) : 0.f;
+        out.ch[static_cast<size_t>(Ch::Centroid)][o] =
+            sumMag > 1e-9 ? static_cast<float>(sumMagF / sumMag) : 0.f;
         const double geo = nb ? std::exp(logSum / static_cast<double>(nb)) : 0.0;
         const double ari = sumMag / static_cast<double>(bins - 1);
-        out.ch[static_cast<size_t>(Ch::Flatness)][o] = ari > 1e-9 ? static_cast<float>(std::min(1.0, geo / ari)) : 0.f;
+        out.ch[static_cast<size_t>(Ch::Flatness)][o] =
+            ari > 1e-9 ? static_cast<float>(std::min(1.0, geo / ari)) : 0.f;
 
         for (size_t b = 0; b < kNumBands; ++b) {
             double e = 0;
-            for (size_t k = I.bandBin[b]; k < std::max(I.bandBin[b + 1], I.bandBin[b] + 1); ++k) e += mag[k] * mag[k];
+            for (size_t k = I.bandBin[b]; k < std::max(I.bandBin[b + 1], I.bandBin[b] + 1); ++k)
+                e += mag[k] * mag[k];
             const float db = 10.f * std::log10(static_cast<float>(e) + 1e-12f);
             bandDb[o * kNumBands + b] = std::clamp((db - kBandDbFloor) / kBandDbSpan, 0.f, 1.f);
             out.ch[static_cast<size_t>(Ch::Band0) + b][o] = bandDb[o * kNumBands + b];
@@ -203,8 +209,10 @@ ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const f
         out.ch[static_cast<size_t>(Ch::Rms)][o] = std::clamp(std::sqrt(rms) * 1.4f, 0.f, 1.f);
         out.ch[static_cast<size_t>(Ch::Correlation)][o] =
             (ll > 1e-12 && rr > 1e-12) ? static_cast<float>(lr / std::sqrt(ll * rr)) : 1.f;
-        out.ch[static_cast<size_t>(Ch::Width)][o] = (mm + ss) > 1e-12 ? static_cast<float>(ss / (mm + ss)) : 0.f;
-        out.ch[static_cast<size_t>(Ch::Pan)][o] = (ll + rr) > 1e-12 ? static_cast<float>((rr - ll) / (rr + ll)) : 0.f;
+        out.ch[static_cast<size_t>(Ch::Width)][o] =
+            (mm + ss) > 1e-12 ? static_cast<float>(ss / (mm + ss)) : 0.f;
+        out.ch[static_cast<size_t>(Ch::Pan)][o] =
+            (ll + rr) > 1e-12 ? static_cast<float>((rr - ll) / (rr + ll)) : 0.f;
     }
 
     // ---- onset strength: positive log-mel flux, full band and by range ----
@@ -213,9 +221,12 @@ ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const f
         float fl = 0, fm = 0, fh = 0;
         for (size_t m = 0; m < M; ++m) {
             const float d = std::max(0.f, logMel[t * M + m] - logMel[(t - 1) * M + m]);
-            if (m < I.lowMelEnd) fl += d;
-            else if (m < I.midMelEnd) fm += d;
-            else fh += d;
+            if (m < I.lowMelEnd)
+                fl += d;
+            else if (m < I.midMelEnd)
+                fm += d;
+            else
+                fh += d;
         }
         // Per-band averages so the three ranges are comparable regardless of how many mel
         // bands each one spans (mel spacing puts most bands in the highs).
@@ -230,8 +241,8 @@ ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const f
 
     // ---- HPSS (median filtering on the mel spectrogram) -> percussive share per frame ----
     {
-        const long hw = 4;                      // horizontal (time) half-width: harmonic
-        const long vw = 4;                      // vertical (frequency) half-width: percussive
+        const long hw = 4;  // horizontal (time) half-width: harmonic
+        const long vw = 4;  // vertical (frequency) half-width: percussive
         std::vector<float> win;
         for (size_t o = 0; o < count; ++o) {
             const size_t t = o + ctx;
@@ -240,13 +251,15 @@ ChunkFeatures FeatureExtractor::process(size_t startFrame, size_t count, const f
                 win.clear();
                 for (long d = -hw; d <= hw; ++d) {
                     const long tt = static_cast<long>(t) + d;
-                    if (tt >= 0 && tt < static_cast<long>(total)) win.push_back(logMel[static_cast<size_t>(tt) * M + m]);
+                    if (tt >= 0 && tt < static_cast<long>(total))
+                        win.push_back(logMel[static_cast<size_t>(tt) * M + m]);
                 }
                 const float h = median(win);
                 win.clear();
                 for (long d = -vw; d <= vw; ++d) {
                     const long mm2 = static_cast<long>(m) + d;
-                    if (mm2 >= 0 && mm2 < static_cast<long>(M)) win.push_back(logMel[t * M + static_cast<size_t>(mm2)]);
+                    if (mm2 >= 0 && mm2 < static_cast<long>(M))
+                        win.push_back(logMel[t * M + static_cast<size_t>(mm2)]);
                 }
                 const float p = median(win);
                 harm += h * h;

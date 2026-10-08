@@ -120,6 +120,7 @@ private fun PlayerScreen(vm: PlayerViewModel) {
         }
     }
     ExportStatus(onDismissResult = { vm.dismissExportResult() })
+    if (vm.showSettings) SettingsDialog(vm, onDismiss = { vm.showSettings = false })
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         var swipe by remember { mutableStateOf(0f) }
         AndroidView(
@@ -158,6 +159,7 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                 FilterChip(selected = vm.scene == i, onClick = { vm.selectScene(i) }, label = { Text(n) })
             }
             FilterChip(selected = vm.showControls, onClick = { vm.showControls = !vm.showControls; vm.showBranding = false }, label = { Text("Tune") })
+            FilterChip(selected = vm.showSettings, onClick = { vm.openSettings() }, label = { Text("Settings") })
             FilterChip(selected = vm.showBranding, onClick = { vm.showBranding = !vm.showBranding; vm.showControls = false }, label = { Text("Brand") })
         }
         if (vm.showBranding) BrandingPanel(vm.branding, { vm.updateBranding(it) }, Modifier.padding(top = 8.dp))

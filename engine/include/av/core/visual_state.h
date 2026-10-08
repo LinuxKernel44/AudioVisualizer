@@ -7,11 +7,11 @@ namespace av {
 /// Post-processing / colour look. Plain data so it can travel inside VisualState.
 struct Look {
     float bloom = 0.5f;
-    float chroma = 0.0015f;   // chromatic aberration strength (fraction of screen)
+    float chroma = 0.0015f;  // chromatic aberration strength (fraction of screen)
     float grain = 0.025f;
-    float feedback = 0.f;     // 0..0.95, amount of the previous frame blended back in
+    float feedback = 0.f;  // 0..0.95, amount of the previous frame blended back in
     float vignette = 0.45f;
-    float glitch = 0.f;       // 0..1
+    float glitch = 0.f;  // 0..1
     float exposure = 0.9f;
     float palette[4][4] = {{0.38f, 0.20f, 1.00f, 1.f},
                            {0.00f, 0.72f, 0.95f, 1.f},
@@ -35,7 +35,7 @@ struct VisualState {
     float kick = 0.f;           // low-band onset flash
     float sectionEnergy = 0.f;  // energy of the current section
     float bpm = 0.f;
-    float bands[8] = {};        // 7 normalised band energies (index 7 unused)
+    float bands[8] = {};  // 7 normalised band energies (index 7 unused)
 
     static constexpr uint32_t kWaveSamples = 256;
     float wave[kWaveSamples] = {};  // recent mono waveform (peak-decimated), -1..1

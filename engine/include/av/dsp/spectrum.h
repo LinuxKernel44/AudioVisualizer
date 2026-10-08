@@ -8,7 +8,7 @@ namespace av {
 
 /// Windowed real FFT (PFFFT) reduced to logarithmically spaced, dB-normalised bars.
 class SpectrumAnalyzer {
-public:
+   public:
     static constexpr size_t kMaxBars = 128;
 
     /// fftSize must be a power of two >= 64.
@@ -30,7 +30,7 @@ public:
     /// Index of the FFT bin for a frequency.
     size_t binForHz(double hz) const;
 
-private:
+   private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
     size_t fftSize_;

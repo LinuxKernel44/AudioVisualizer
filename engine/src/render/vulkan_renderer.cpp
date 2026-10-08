@@ -1,6 +1,7 @@
 #include "av/render/vulkan_renderer.h"
 
 #include <android/log.h>
+#include <android/performance_hint.h>
 #include <sys/resource.h>
 #include <unistd.h>
 
@@ -11,8 +12,6 @@
 
 #include "av/render/render_core.h"
 #include "av/render/vk_context.h"
-
-#include <android/performance_hint.h>
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "av.vk", __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "av.vk", __VA_ARGS__)
@@ -28,9 +27,7 @@
 
 namespace av {
 
-namespace {
-
-}  // namespace
+namespace {}  // namespace
 
 struct VulkanRenderer::Vk {
     vk::Context ctx;
@@ -109,7 +106,8 @@ bool VulkanRenderer::Vk::ensureSwapPass() {
     VkSubpassDependency dep{};
     dep.srcSubpass = VK_SUBPASS_EXTERNAL;
     dep.dstSubpass = 0;
-    dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dep.srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dep.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -253,7 +251,9 @@ bool VulkanRenderer::Vk::applyScale(float scale) {
     // Only the HDR working targets depend on the scale; the swapchain stays as it is.
     const auto even = [](float v) { return std::max(2u, static_cast<uint32_t>(v) & ~1u); };
     vkDeviceWaitIdle(ctx.dev);
-    if (!core.resize(even(static_cast<float>(extent.width) * scale), even(static_cast<float>(extent.height) * scale))) return false;
+    if (!core.resize(even(static_cast<float>(extent.width) * scale),
+                     even(static_cast<float>(extent.height) * scale)))
+        return false;
     lastScale = scale;
     return true;
 }
@@ -266,13 +266,16 @@ bool VulkanRenderer::Vk::drawFrame(const VisualState& vs, float timeSec, float d
         uint64_t t[2];
         if (vkGetQueryPoolResults(ctx.dev, qpool, frameIndex * 2, 2, sizeof t, t, sizeof(uint64_t),
                                   VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
-            const uint64_t mask = ctx.timestampValidBits >= 64 ? ~0ull : ((1ull << ctx.timestampValidBits) - 1);
-            gpuMs = static_cast<float>(static_cast<double>((t[1] - t[0]) & mask) * ctx.props.limits.timestampPeriod / 1e6);
+            const uint64_t mask =
+                ctx.timestampValidBits >= 64 ? ~0ull : ((1ull << ctx.timestampValidBits) - 1);
+            gpuMs = static_cast<float>(static_cast<double>((t[1] - t[0]) & mask) *
+                                       ctx.props.limits.timestampPeriod / 1e6);
         }
     }
 
     uint32_t img = 0;
-    VkResult r = vkAcquireNextImageKHR(ctx.dev, swapchain, UINT64_MAX, acquire[frameIndex], VK_NULL_HANDLE, &img);
+    VkResult r = vkAcquireNextImageKHR(ctx.dev, swapchain, UINT64_MAX, acquire[frameIndex],
+                                       VK_NULL_HANDLE, &img);
     if (r == VK_ERROR_OUT_OF_DATE_KHR) return recreateSwapchain(scale);
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) {
         LOGE("acquire failed: %d", r);
@@ -288,7 +291,8 @@ bool VulkanRenderer::Vk::drawFrame(const VisualState& vs, float timeSec, float d
         vkCmdResetQueryPool(f.cmd, qpool, frameIndex * 2, 2);
         vkCmdWriteTimestamp(f.cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, qpool, frameIndex * 2);
     }
-    core.record(frameIndex, vs, timeSec, dt, framebuffers[img], extent, swapPass, std::clamp(scale, 0.25f, 1.f));
+    core.record(frameIndex, vs, timeSec, dt, framebuffers[img], extent, swapPass,
+                std::clamp(scale, 0.25f, 1.f));
     if (qpool) {
         vkCmdWriteTimestamp(f.cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, qpool, frameIndex * 2 + 1);
         slotUsed[frameIndex] = true;
@@ -380,6 +384,7 @@ void VulkanRenderer::run() {
     APerformanceHintManager* hintMgr = nullptr;
     APerformanceHintSession* hint = nullptr;
     float hintFps = 0.f;
+    bool appliedSaver = false;
 
     while (instanceOk) {
         ANativeWindow* incoming = nullptr;
@@ -401,7 +406,8 @@ void VulkanRenderer::run() {
             if (current) ANativeWindow_release(current);
             current = incoming;
             if (current && vk.createSurface(current)) {
-                if (!vk.deviceReady) vk.deviceReady = vk.ctx.createDevice(vk.surface) && vk.createDeviceResources();
+                if (!vk.deviceReady)
+                    vk.deviceReady = vk.ctx.createDevice(vk.surface) && vk.createDeviceResources();
                 active = vk.deviceReady && vk.createSwapchain(renderScale_.load());
             }
             {
@@ -419,45 +425,74 @@ void VulkanRenderer::run() {
             statFrames++;
             statSum += dt;
             if (statSum >= 3.0) {  // periodic cadence report (average frame interval and fps)
-                LOGI("frame interval %.2f ms (%.1f fps), GPU %.2f ms, render scale %.2f", statSum / statFrames * 1000.0,
-                     statFrames / statSum, static_cast<double>(vk.gpuMs), static_cast<double>(scale));
+                LOGI("frame interval %.2f ms (%.1f fps), GPU %.2f ms, render scale %.2f",
+                     statSum / statFrames * 1000.0, statFrames / statSum,
+                     static_cast<double>(vk.gpuMs), static_cast<double>(scale));
                 statFrames = 0;
                 statSum = 0.0;
             }
-            const float fpsTarget = targetFps_.load();
+            const float fpsTarget =
+                powerSaver_.load() ? std::min(30.f, targetFps_.load()) : targetFps_.load();
             const int thermal = thermal_.load();
-            const float thermalCap = thermal >= 5 ? 0.5f : thermal == 4 ? 0.55f : thermal == 3 ? 0.7f : thermal == 2 ? 0.85f : 1.f;
+            const float thermalCap = thermal >= 5   ? 0.5f
+                                     : thermal == 4 ? 0.55f
+                                     : thermal == 3 ? 0.7f
+                                     : thermal == 2 ? 0.85f
+                                                    : 1.f;
             const float userMax = std::min(1.f, renderScale_.load());
-            const float cap = std::min(userMax, thermalCap);
+            const bool saver = powerSaver_.load();
+            const float cap = std::min({userMax, thermalCap, saver ? 0.7f : 1.f});
             if (scale > cap) scale = std::max(kMinScale, cap);
             if (__builtin_available(android 33, *)) {
                 if (!hint && !hintMgr) hintMgr = APerformanceHint_getManager();
                 if (hintMgr && (!hint || std::fabs(hintFps - fpsTarget) > 1.f)) {
                     if (hint) APerformanceHint_closeSession(hint);
                     const int32_t tid = gettid();
-                    hint = APerformanceHint_createSession(hintMgr, &tid, 1, static_cast<int64_t>(0.9e9 / fpsTarget));
+                    hint = APerformanceHint_createSession(hintMgr, &tid, 1,
+                                                          static_cast<int64_t>(0.9e9 / fpsTarget));
                     hintFps = fpsTarget;
                 }
             }
             if (layersDirty_.exchange(false)) {
                 std::lock_guard<std::mutex> lk(layerMu_);
                 if (overlay_.dirty) {
-                    vk.core.setOverlay(overlay_.rgba.empty() ? nullptr : overlay_.rgba.data(), overlay_.w, overlay_.h);
+                    vk.core.setOverlay(overlay_.rgba.empty() ? nullptr : overlay_.rgba.data(),
+                                       overlay_.w, overlay_.h);
                     overlay_.dirty = false;
                 }
                 if (background_.dirty) {
-                    vk.core.setBackground(background_.rgba.empty() ? nullptr : background_.rgba.data(), background_.w, background_.h);
+                    vk.core.setBackground(
+                        background_.rgba.empty() ? nullptr : background_.rgba.data(), background_.w,
+                        background_.h);
                     background_.dirty = false;
                 }
             }
             vk.core.setBrandingOpacity(overlayOpacity_.load(), backgroundOpacity_.load());
+            if (saver != appliedSaver && current) {
+                if (__builtin_available(
+                        android 30, *)) {  // let the display drop its refresh rate too
+                    ANativeWindow_setFrameRate(current, saver ? 30.f : 0.f,
+                                               ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
+                }
+                appliedSaver = saver;
+            }
             const auto work0 = std::chrono::steady_clock::now();
             const bool drawn = vk.drawFrame(state_.read(), t, std::min(dt, 0.1f), scale);
             if (__builtin_available(android 33, *)) {
                 if (hint) {
-                    const double cpuNs = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - work0).count();
-                    APerformanceHint_reportActualWorkDuration(hint, static_cast<int64_t>(std::max(cpuNs, static_cast<double>(vk.gpuMs) * 1e6)));
+                    const double cpuNs = std::chrono::duration<double, std::nano>(
+                                             std::chrono::steady_clock::now() - work0)
+                                             .count();
+                    APerformanceHint_reportActualWorkDuration(
+                        hint,
+                        static_cast<int64_t>(std::max(cpuNs, static_cast<double>(vk.gpuMs) * 1e6)));
                 }
+            }
+            if (saver) {  // hold ~30 fps even if the compositor would present sooner
+                const double spent =
+                    std::chrono::duration<double>(std::chrono::steady_clock::now() - now).count();
+                if (spent < 1.0 / 30.0)
+                    std::this_thread::sleep_for(std::chrono::duration<double>(1.0 / 30.0 - spent));
             }
             gpuMs_ = vk.gpuMs;
             scaleNow_ = scale;

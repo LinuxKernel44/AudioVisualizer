@@ -16,7 +16,7 @@ namespace av {
 /// real-time preview worker and the offline exporter: given the same samples, step times and
 /// positions the output is identical (no clocks, no threads, no randomness).
 class FrontEnd {
-public:
+   public:
     explicit FrontEnd(double sampleRate, size_t numBars = 64);
 
     /// Appends mono samples to the analysis history (only the newest window() are kept).
@@ -35,7 +35,7 @@ public:
     bool hasTimeline() const { return sampler_ != nullptr; }
     const Director& director() const { return director_; }
 
-private:
+   private:
     void applyBars(const float* raw);
 
     double sr_;

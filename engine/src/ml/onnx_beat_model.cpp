@@ -26,9 +26,11 @@ bool OnnxBeatModel::load(const std::string& path, std::string* error) {
         const unsigned hc = std::max(2u, std::thread::hardware_concurrency());
         opts.SetIntraOpNumThreads(static_cast<int>(std::clamp(hc / 2, 2u, 4u)));
         opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        opts.AddConfigEntry("session.intra_op.allow_spinning", "0");  // do not burn cores while idle
+        opts.AddConfigEntry("session.intra_op.allow_spinning",
+                            "0");  // do not burn cores while idle
         impl_->session = std::make_unique<Ort::Session>(impl_->env, path.c_str(), opts);
-        LOGI("loaded %s (%zu inputs, %zu outputs)", path.c_str(), impl_->session->GetInputCount(), impl_->session->GetOutputCount());
+        LOGI("loaded %s (%zu inputs, %zu outputs)", path.c_str(), impl_->session->GetInputCount(),
+             impl_->session->GetOutputCount());
         return true;
     } catch (const Ort::Exception& e) {
         error_ = e.what();
@@ -43,7 +45,8 @@ bool OnnxBeatModel::run(const float* spect, size_t frames, float* beat, float* d
     try {
         Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         const int64_t shape[3] = {1, static_cast<int64_t>(frames), 128};
-        Ort::Value in = Ort::Value::CreateTensor<float>(mem, const_cast<float*>(spect), frames * 128, shape, 3);
+        Ort::Value in =
+            Ort::Value::CreateTensor<float>(mem, const_cast<float*>(spect), frames * 128, shape, 3);
         const char* inNames[] = {"spect"};
         const char* outNames[] = {"beat", "downbeat"};
         auto out = impl_->session->Run(Ort::RunOptions{nullptr}, inNames, &in, 1, outNames, 2);

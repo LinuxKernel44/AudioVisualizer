@@ -14,6 +14,7 @@ bool beatModelAvailable();
 /// Decodes the audio behind `fd` again, runs the Beat This! model over it and returns beat and
 /// downbeat times. Streams: memory use does not grow with the track length.
 bool runBeatModelPass(int fd, const std::string& modelPath, const std::atomic<bool>* cancel,
-                      const std::function<void(float)>& progress, BeatTimes* out, std::string* error);
+                      const std::function<void(float)>& progress, BeatTimes* out,
+                      std::string* error);
 
 }  // namespace av
