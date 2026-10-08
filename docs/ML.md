@@ -28,9 +28,13 @@ onset flux) at least 60 % as well as the DSP grid: a regular but misplaced or sl
 grid fails it. The summary reports which source was used
 (`beatSource`: `ml` / `dsp`).
 
-## Cost
+## Cost and limits
 About 10 s of inference per 40 s of audio on a Galaxy S10 CPU (2.1 M parameters, 2 threads). Results are
-cached per file and per model, so this happens once.
+cached per file and per model, so this happens once. A 1500-frame chunk makes the attention layers
+allocate on the order of 1.4 GB transiently (measured on a Galaxy S10), so the ONNX Runtime arena is
+disabled and the model is only run for tracks up to 15 minutes; longer tracks keep the DSP rhythm. A
+one-hour track analyses in about 4.5 minutes with the DSP stage alone on the S10 with a flat memory
+profile (~170 MB).
 
 ## Licence
 Code and published weights are MIT-licensed. The authors note that some training material is under

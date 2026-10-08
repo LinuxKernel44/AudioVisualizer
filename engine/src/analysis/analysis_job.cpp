@@ -20,8 +20,12 @@
 namespace av {
 
 /// Bump whenever the analysis algorithms change in a way that alters results, so stale cache
-/// entries are ignored. (Rev 3: ML beat gates for regularity and onset alignment.)
-constexpr int kAnalysisRevision = 3;
+/// entries are ignored. (Rev 4: ML beat gates, 15-minute cap on the beat model.)
+constexpr int kAnalysisRevision = 4;
+
+/// The beat model costs roughly a quarter of real time and several hundred MB while it runs on a
+/// mid-range phone, so very long tracks (DJ mixes, audiobooks) keep the classical DSP rhythm.
+constexpr double kMaxMlSeconds = 15.0 * 60.0;
 
 uint64_t fingerprintFd(int fd) {
     struct stat st{};
@@ -126,6 +130,11 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
     };
     if (useMl) {
         opts.refineRhythm = [&](Timeline& tl) {
+            if (tl.durationSec > kMaxMlSeconds) {
+                LOGI("track is %.0f s long: skipping the beat model, keeping the DSP rhythm",
+                     tl.durationSec);
+                return;
+            }
             BeatTimes bt;
             std::string merr;
             if (!runBeatModelPass(
