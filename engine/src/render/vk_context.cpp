@@ -46,8 +46,11 @@ bool Context::createDevice(VkSurfaceKHR surface) {
         std::vector<VkQueueFamilyProperties> qp(qn);
         vkGetPhysicalDeviceQueueFamilyProperties(d, &qn, qp.data());
         for (uint32_t i = 0; i < qn; ++i) {
-            VkBool32 present = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(d, i, surface, &present);
+            VkBool32 present = VK_TRUE;
+            if (surface) {
+                present = VK_FALSE;
+                vkGetPhysicalDeviceSurfaceSupportKHR(d, i, surface, &present);
+            }
             if ((qp[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && present) {
                 phys = d;
                 family = i;
@@ -74,7 +77,7 @@ bool Context::createDevice(VkSurfaceKHR surface) {
     VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     dci.queueCreateInfoCount = 1;
     dci.pQueueCreateInfos = &qci;
-    dci.enabledExtensionCount = 1;
+    dci.enabledExtensionCount = surface ? 1 : 0;
     dci.ppEnabledExtensionNames = exts;
     VK_TRY(vkCreateDevice(phys, &dci, nullptr, &dev));
     vkGetDeviceQueue(dev, family, 0, &queue);
@@ -109,7 +112,7 @@ bool Context::formatSupports(VkFormat f, VkFormatFeatureFlags needed) const {
 }
 
 bool createBuffer(const Context& c, VkDeviceSize size, VkBufferUsageFlags usage, bool hostVisible,
-                  Buffer* out) {
+                  Buffer* out, bool cachedReadback) {
     VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     bi.size = size;
     bi.usage = usage;
@@ -118,7 +121,16 @@ bool createBuffer(const Context& c, VkDeviceSize size, VkBufferUsageFlags usage,
     vkGetBufferMemoryRequirements(c.dev, out->buf, &mr);
     VkMemoryPropertyFlags want = hostVisible ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
                                              : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    uint32_t mt = c.findMemoryType(mr.memoryTypeBits, want);
+    uint32_t mt = UINT32_MAX;
+    if (hostVisible && cachedReadback) {
+        mt = c.findMemoryType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT |
+                                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (mt == UINT32_MAX) {  // cached but not coherent: needs explicit invalidation
+            mt = c.findMemoryType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+            out->coherent = mt == UINT32_MAX;
+        }
+    }
+    if (mt == UINT32_MAX) mt = c.findMemoryType(mr.memoryTypeBits, want);
     if (mt == UINT32_MAX) mt = c.findMemoryType(mr.memoryTypeBits, 0);
     if (mt == UINT32_MAX) {
         LOGE("no suitable memory type");

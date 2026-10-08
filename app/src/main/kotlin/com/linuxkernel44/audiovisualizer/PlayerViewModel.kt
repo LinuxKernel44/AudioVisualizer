@@ -67,7 +67,25 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         engine.setCacheDir(dir.absolutePath)
     }
 
+    var currentUri: Uri? = null
+        private set
+    var showExport by mutableStateOf(false)
+
+    fun startExport(ctx: android.content.Context, cfg: ExportConfig) {
+        val uri = currentUri ?: return
+        showExport = false
+        engine.pause()
+        refresh()
+        ExportService.start(ctx, uri, trackName ?: "track", cfg, controls, scene)
+    }
+
+    fun dismissExportResult() {
+        ExportController.resultUri = null
+        ExportController.error = null
+    }
+
     fun open(uri: Uri) {
+        currentUri = uri
         loading = true
         error = null
         summary = null

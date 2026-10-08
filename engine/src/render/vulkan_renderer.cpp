@@ -9,11 +9,8 @@
 #include <cstring>
 #include <vector>
 
-#include "av/render/frame_data.h"
-#include "av/render/post_chain.h"
-#include "av/render/scene.h"
+#include "av/render/render_core.h"
 #include "av/render/vk_context.h"
-#include "fullscreen_vert.h"
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "av.vk", __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "av.vk", __VA_ARGS__)
@@ -30,58 +27,14 @@
 namespace av {
 
 namespace {
-constexpr uint32_t kFramesInFlight = 2;
 
-void fillFrameData(FrameData* d, const VisualState& vs, VkExtent2D ext, float time, float dt) {
-    std::memset(d, 0, sizeof(*d));
-    d->res[0] = static_cast<float>(ext.width);
-    d->res[1] = static_cast<float>(ext.height);
-    d->res[2] = static_cast<float>(ext.width) / static_cast<float>(ext.height);
-    d->res[3] = time;
-    d->audio[0] = vs.rms;
-    d->audio[1] = vs.kick;
-    d->audio[2] = vs.beatPulse;
-    d->audio[3] = vs.beatPhase;
-    d->audio2[0] = static_cast<float>(vs.barBeat);
-    d->audio2[1] = vs.sectionEnergy;
-    d->audio2[2] = vs.bpm;
-    d->audio2[3] = vs.hasTimeline ? 1.f : 0.f;
-    d->fx[0] = vs.look.bloom;
-    d->fx[1] = vs.look.chroma;
-    d->fx[2] = vs.look.grain;
-    d->fx[3] = vs.look.feedback;
-    d->fx2[0] = vs.look.vignette;
-    d->fx2[1] = vs.look.glitch;
-    d->fx2[2] = vs.look.exposure;
-    d->fx2[3] = dt;
-    std::memcpy(d->pal, vs.look.palette, sizeof(d->pal));
-    std::memcpy(d->bands, vs.bands, sizeof(d->bands));
-    std::memcpy(d->bars, vs.bars, sizeof(d->bars));
-    std::memcpy(d->wave, vs.wave, sizeof(d->wave));
-    d->ctl[0] = vs.transition;
-    d->ctl[1] = vs.sceneTime;
-    d->ctl[2] = static_cast<float>(std::max<uint32_t>(vs.numBars, 1));
-}
 }  // namespace
 
 struct VulkanRenderer::Vk {
-    struct Frame {
-        VkCommandBuffer cmd = VK_NULL_HANDLE;
-        VkSemaphore acquire = VK_NULL_HANDLE;
-        VkFence fence = VK_NULL_HANDLE;
-        vk::Buffer ubo;
-        VkDescriptorSet set = VK_NULL_HANDLE;
-    };
-
     vk::Context ctx;
     bool deviceReady = false;
-    VkDescriptorSetLayout frameLayout = VK_NULL_HANDLE;
-    VkDescriptorPool dpool = VK_NULL_HANDLE;
-    VkShaderModule fullscreenVs = VK_NULL_HANDLE;
-    Frame frames[kFramesInFlight];
-    PostChain post;
-    std::vector<std::unique_ptr<Scene>> scenes;
-    bool resourcesReady = false;
+    RenderCore core;
+    VkSemaphore acquire[RenderCore::kSlots] = {};
 
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
@@ -117,63 +70,9 @@ bool VulkanRenderer::Vk::createSurface(ANativeWindow* w) {
 }
 
 bool VulkanRenderer::Vk::createDeviceResources() {
-    VkDescriptorSetLayoutBinding b{};
-    b.binding = 0;
-    b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    b.descriptorCount = 1;
-    b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-    VkDescriptorSetLayoutCreateInfo dl{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-    dl.bindingCount = 1;
-    dl.pBindings = &b;
-    VK_TRY(vkCreateDescriptorSetLayout(ctx.dev, &dl, nullptr, &frameLayout));
-
-    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 16}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16}};
-    VkDescriptorPoolCreateInfo dp{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-    dp.maxSets = 32;
-    dp.poolSizeCount = 2;
-    dp.pPoolSizes = ps;
-    VK_TRY(vkCreateDescriptorPool(ctx.dev, &dp, nullptr, &dpool));
-
-    for (Frame& f : frames) {
-        VkCommandBufferAllocateInfo ai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-        ai.commandPool = ctx.cmdPool;
-        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        ai.commandBufferCount = 1;
-        VK_TRY(vkAllocateCommandBuffers(ctx.dev, &ai, &f.cmd));
-        VkSemaphoreCreateInfo si{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        VK_TRY(vkCreateSemaphore(ctx.dev, &si, nullptr, &f.acquire));
-        VkFenceCreateInfo fi{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-        fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        VK_TRY(vkCreateFence(ctx.dev, &fi, nullptr, &f.fence));
-        if (!vk::createBuffer(ctx, sizeof(FrameData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true, &f.ubo)) return false;
-        std::memset(f.ubo.mapped, 0, sizeof(FrameData));
-        VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        dai.descriptorPool = dpool;
-        dai.descriptorSetCount = 1;
-        dai.pSetLayouts = &frameLayout;
-        VK_TRY(vkAllocateDescriptorSets(ctx.dev, &dai, &f.set));
-        VkDescriptorBufferInfo dbi{f.ubo.buf, 0, sizeof(FrameData)};
-        VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        w.dstSet = f.set;
-        w.descriptorCount = 1;
-        w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        w.pBufferInfo = &dbi;
-        vkUpdateDescriptorSets(ctx.dev, 1, &w, 0, nullptr);
-    }
-    fullscreenVs = vk::createShader(ctx, shaders::fullscreen_vert, shaders::fullscreen_vertSize);
-    if (!fullscreenVs) return false;
-    if (!post.create(ctx, fullscreenVs, frameLayout)) return false;
-
-    scenes = createBuiltinScenes();
-    SceneEnv env{&ctx, post.scenePass(), frameLayout, dpool, fullscreenVs};
-    for (auto& s : scenes) {
-        if (!s->create(env)) {
-            LOGE("scene '%s' failed to create", s->name());
-            return false;
-        }
-    }
-    LOGI("%zu scene(s) ready", scenes.size());
-    resourcesReady = true;
+    if (!core.create(&ctx)) return false;
+    VkSemaphoreCreateInfo si{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    for (VkSemaphore& sem : acquire) VK_TRY(vkCreateSemaphore(ctx.dev, &si, nullptr, &sem));
     return true;
 }
 
@@ -268,7 +167,7 @@ bool VulkanRenderer::Vk::createSwapchain(float scale) {
     const auto even = [](float v) { return std::max(2u, static_cast<uint32_t>(v) & ~1u); };
     const uint32_t iw = even(static_cast<float>(extent.width) * scale);
     const uint32_t ih = even(static_cast<float>(extent.height) * scale);
-    if (!post.resize(iw, ih)) return false;
+    if (!core.resize(iw, ih)) return false;
     lastScale = scale;
 
     uint32_t n = 0;
@@ -329,29 +228,21 @@ void VulkanRenderer::Vk::destroyAll() {
     destroySurface();
     if (ctx.dev) {
         vkDeviceWaitIdle(ctx.dev);
-        for (auto& s : scenes) s->destroy(ctx);
-        scenes.clear();
-        post.destroy();
+        for (VkSemaphore s : acquire)
+            if (s) vkDestroySemaphore(ctx.dev, s, nullptr);
+        core.destroy();
         if (swapPass) vkDestroyRenderPass(ctx.dev, swapPass, nullptr);
-        for (Frame& f : frames) {
-            vk::destroy(ctx, f.ubo);
-            if (f.acquire) vkDestroySemaphore(ctx.dev, f.acquire, nullptr);
-            if (f.fence) vkDestroyFence(ctx.dev, f.fence, nullptr);
-        }
-        if (fullscreenVs) vkDestroyShaderModule(ctx.dev, fullscreenVs, nullptr);
-        if (dpool) vkDestroyDescriptorPool(ctx.dev, dpool, nullptr);
-        if (frameLayout) vkDestroyDescriptorSetLayout(ctx.dev, frameLayout, nullptr);
     }
     ctx.destroy();
 }
 
 bool VulkanRenderer::Vk::drawFrame(const VisualState& vs, float timeSec, float dt, float scale) {
     if (std::fabs(scale - lastScale) > 0.01f && !recreateSwapchain(scale)) return false;
-    Frame& f = frames[frameIndex];
+    RenderCore::Slot& f = core.slot(frameIndex);
     vkWaitForFences(ctx.dev, 1, &f.fence, VK_TRUE, UINT64_MAX);
 
     uint32_t img = 0;
-    VkResult r = vkAcquireNextImageKHR(ctx.dev, swapchain, UINT64_MAX, f.acquire, VK_NULL_HANDLE, &img);
+    VkResult r = vkAcquireNextImageKHR(ctx.dev, swapchain, UINT64_MAX, acquire[frameIndex], VK_NULL_HANDLE, &img);
     if (r == VK_ERROR_OUT_OF_DATE_KHR) return recreateSwapchain(scale);
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) {
         LOGE("acquire failed: %d", r);
@@ -359,42 +250,17 @@ bool VulkanRenderer::Vk::drawFrame(const VisualState& vs, float timeSec, float d
     }
     vkResetFences(ctx.dev, 1, &f.fence);
 
-    const VkExtent2D internal = post.extent();
-    fillFrameData(static_cast<FrameData*>(f.ubo.mapped), vs, internal, timeSec, dt);
-
-    const size_t nScenes = scenes.size();
-    Scene* a = scenes[vs.sceneA % nScenes].get();
-    Scene* b = scenes[vs.sceneB % nScenes].get();
-    const bool transitioning = vs.transition > 0.001f && a != b;
-    FrameInfo fi;
-    fi.frameIndex = frameIndex;
-    fi.frameSet = f.set;
-    fi.extent = internal;
-    fi.time = timeSec;
-    fi.dt = dt;
-    fi.sceneTime = vs.sceneTime;
-
     vkResetCommandBuffer(f.cmd, 0);
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(f.cmd, &bi);
-    a->prepare(f.cmd, fi);
-    if (transitioning) b->prepare(f.cmd, fi);
-    post.beginScenePass(f.cmd, 0);
-    a->draw(f.cmd, fi);
-    post.endScenePass(f.cmd);
-    if (transitioning) {
-        post.beginScenePass(f.cmd, 1);
-        b->draw(f.cmd, fi);
-        post.endScenePass(f.cmd);
-    }
-    post.record(f.cmd, f.set, vs.look, transitioning, vs.transition, framebuffers[img], extent, swapPass);
+    core.record(frameIndex, vs, timeSec, dt, framebuffers[img], extent, swapPass);
     vkEndCommandBuffer(f.cmd);
 
     const VkPipelineStageFlags wait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     si.waitSemaphoreCount = 1;
-    si.pWaitSemaphores = &f.acquire;
+    si.pWaitSemaphores = &acquire[frameIndex];
     si.pWaitDstStageMask = &wait;
     si.commandBufferCount = 1;
     si.pCommandBuffers = &f.cmd;
@@ -409,7 +275,7 @@ bool VulkanRenderer::Vk::drawFrame(const VisualState& vs, float timeSec, float d
     pi.pSwapchains = &swapchain;
     pi.pImageIndices = &img;
     r = vkQueuePresentKHR(ctx.queue, &pi);
-    frameIndex = (frameIndex + 1) % kFramesInFlight;
+    frameIndex = (frameIndex + 1) % RenderCore::kSlots;
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR) return recreateSwapchain(scale);
     return r == VK_SUCCESS;
 }

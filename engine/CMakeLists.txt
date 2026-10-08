@@ -56,6 +56,11 @@ if(ANDROID)
         src/render/vk_context.cpp
         src/render/scene_common.cpp
         src/render/post_chain.cpp
+        src/render/render_core.cpp
+        src/render/offscreen_renderer.cpp
+        src/export/mux_sink.cpp
+        src/export/encoders.cpp
+        src/export/export_job.cpp
         src/render/scenes/registry.cpp
         src/render/vulkan_renderer.cpp)
     add_dependencies(avengine avshaders)

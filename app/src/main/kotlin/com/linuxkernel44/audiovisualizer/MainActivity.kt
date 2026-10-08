@@ -104,6 +104,14 @@ private fun PlayerScreen(vm: PlayerViewModel) {
         }
     }
 
+    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    if (vm.showExport) {
+        ExportDialog(onDismiss = { vm.showExport = false }) { cfg ->
+            if (android.os.Build.VERSION.SDK_INT >= 33) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            vm.startExport(ctx, cfg)
+        }
+    }
+    ExportStatus(onDismissResult = { vm.dismissExportResult() })
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         var swipe by remember { mutableStateOf(0f) }
         AndroidView(
@@ -193,6 +201,9 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                     }) { Text("Import") }
                     Button(onClick = { vm.togglePlay() }, enabled = vm.trackName != null) {
                         Text(if (vm.playing) "Pause" else "Play")
+                    }
+                    Button(onClick = { vm.showExport = true }, enabled = vm.trackName != null && vm.summary != null && !ExportController.running) {
+                        Text("Export")
                     }
                 }
             }
