@@ -26,6 +26,8 @@ public:
     void setSurface(ANativeWindow* window);  // nullptr = surface destroyed
 
     float lastFrameMs() const { return lastFrameMs_.load(); }
+    /// Internal render resolution as a fraction of the screen (0.25..1). Applied next frame.
+    void setRenderScale(float s) { renderScale_.store(s); }
 
 private:
     struct Vk;
@@ -35,6 +37,7 @@ private:
     std::thread thread_;
     std::atomic<bool> stop_{false};
     std::atomic<float> lastFrameMs_{0.f};
+    std::atomic<float> renderScale_{1.0f};
 
     std::mutex mu_;
     std::condition_variable cv_;

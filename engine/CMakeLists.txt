@@ -32,14 +32,16 @@ if(ANDROID)
     set(GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
     file(MAKE_DIRECTORY ${GEN_DIR})
     set(SHADER_HEADERS)
-    foreach(src fullscreen.vert bars.frag)
+    file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag ${SHADER_DIR}/*.comp)
+    foreach(path ${SHADER_SOURCES})
+        get_filename_component(src ${path} NAME)
         string(REPLACE "." "_" name ${src})
         add_custom_command(
             OUTPUT ${GEN_DIR}/${name}.h
-            COMMAND ${GLSLC} --target-env=vulkan1.1 -O ${SHADER_DIR}/${src} -o ${GEN_DIR}/${name}.spv
+            COMMAND ${GLSLC} --target-env=vulkan1.1 -O -I ${SHADER_DIR} ${path} -o ${GEN_DIR}/${name}.spv
             COMMAND ${CMAKE_COMMAND} -DINPUT=${GEN_DIR}/${name}.spv -DOUTPUT=${GEN_DIR}/${name}.h
                     -DNAME=${name} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFile.cmake
-            DEPENDS ${SHADER_DIR}/${src} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFile.cmake
+            DEPENDS ${path} ${SHADER_DIR}/common.glsl ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFile.cmake
             COMMENT "Compiling shader ${src}")
         list(APPEND SHADER_HEADERS ${GEN_DIR}/${name}.h)
     endforeach()
@@ -51,6 +53,10 @@ if(ANDROID)
         src/audio/decoder.cpp
         src/audio/player.cpp
         src/analysis/analysis_job.cpp
+        src/render/vk_context.cpp
+        src/render/scene_common.cpp
+        src/render/post_chain.cpp
+        src/render/scenes/registry.cpp
         src/render/vulkan_renderer.cpp)
     add_dependencies(avengine avshaders)
     target_include_directories(avengine PRIVATE ${GEN_DIR})
