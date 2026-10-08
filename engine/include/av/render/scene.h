@@ -23,6 +23,7 @@ struct FrameInfo {
     float time = 0.f;
     float dt = 0.f;
     float sceneTime = 0.f;
+    float quality = 1.f;  // 0.25..1: scenes may scale their workload (e.g. particle count)
 };
 
 /// A visual scene. prepare() runs outside any render pass (compute), draw() inside the HDR pass.
@@ -53,6 +54,8 @@ private:
     VkPipelineLayout layout_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
 };
+
+std::unique_ptr<Scene> createParticleScene();
 
 /// All built-in scenes, in director order.
 std::vector<std::unique_ptr<Scene>> createBuiltinScenes();

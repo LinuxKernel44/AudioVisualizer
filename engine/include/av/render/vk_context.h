@@ -19,6 +19,7 @@ struct Context {
     VkCommandPool cmdPool = VK_NULL_HANDLE;
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memProps{};
+    uint32_t timestampValidBits = 0;  // of the chosen queue family (0 = timestamps unsupported)
 
     bool createInstance();
     /// Picks a graphics (+present, if `surface` is given) device and creates the device and command

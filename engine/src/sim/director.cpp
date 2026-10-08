@@ -63,10 +63,10 @@ uint32_t sceneForLabel(SectionLabel label, uint32_t cluster) {
         case SectionLabel::Outro: return kSceneBars;
         case SectionLabel::Verse: return (cluster & 1) ? kSceneRing : kSceneBars;
         case SectionLabel::Build: return kSceneTunnel;
-        case SectionLabel::Chorus: return (cluster & 1) ? kSceneFractal : kSceneTunnel;
-        case SectionLabel::Drop: return kSceneFractal;
+        case SectionLabel::Chorus: return cluster % 3 == 0 ? kSceneTunnel : cluster % 3 == 1 ? kSceneFractal : kSceneParticles;
+        case SectionLabel::Drop: return (cluster & 1) ? kSceneFractal : kSceneParticles;
         case SectionLabel::Break: return kSceneRing;
-        case SectionLabel::Bridge: return kSceneTunnel;
+        case SectionLabel::Bridge: return kSceneParticles;
     }
     return kSceneBars;
 }

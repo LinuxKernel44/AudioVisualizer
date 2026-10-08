@@ -56,6 +56,10 @@ public:
     int64_t positionMs() const { return player_ ? player_->positionMs() : 0; }
     int64_t durationMs() const { return decoder_ ? decoder_->durationUs() / 1000 : 0; }
     float frameMs() const { return renderer_.lastFrameMs(); }
+    void setTargetFps(float fps) { renderer_.setTargetFps(fps); }
+    void setThermalLevel(int level) { renderer_.setThermalLevel(level); }
+    void setAutoScale(bool on) { renderer_.setAutoScale(on); }
+    VulkanRenderer::Perf perf() const { return renderer_.perf(); }
 
 private:
     void unload();

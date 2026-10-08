@@ -54,6 +54,7 @@ bool Context::createDevice(VkSurfaceKHR surface) {
             if ((qp[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && present) {
                 phys = d;
                 family = i;
+                timestampValidBits = qp[i].timestampValidBits;
                 break;
             }
         }

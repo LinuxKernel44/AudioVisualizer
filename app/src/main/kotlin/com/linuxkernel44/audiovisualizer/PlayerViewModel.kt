@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import java.util.concurrent.Executors
 
-val SCENE_NAMES = listOf("Bars", "Radial", "Tunnel", "Fractal")
+val SCENE_NAMES = listOf("Bars", "Radial", "Tunnel", "Fractal", "Particles")
 
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val engine = NativeEngine()
@@ -54,6 +54,22 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var controls by mutableStateOf(Controls.load(prefs))
         private set
     var showControls by mutableStateOf(false)
+    var showPerf by mutableStateOf(false)
+    var perfText by mutableStateOf("")
+    var thermalStatus by mutableStateOf(0)
+        private set
+
+    fun onThermalStatus(status: Int) {
+        thermalStatus = status
+        engine.setThermalLevel(status)
+    }
+
+    fun pollPerf() {
+        if (!showPerf) return
+        val p = engine.perf()
+        val fps = if (p[0] > 0f) 1000f / p[0] else 0f
+        perfText = "%.0f fps (target %.0f)\nGPU %.1f ms\nscale %.2f\nthermal %d".format(fps, p[3], p[1], p[2], thermalStatus)
+    }
 
     fun updateControls(c: Controls) {
         controls = c

@@ -135,7 +135,7 @@ void RenderCore::destroy() {
 }
 
 void RenderCore::record(uint32_t i, const VisualState& vs, float timeSec, float dt, VkFramebuffer fb,
-                        VkExtent2D extent, VkRenderPass pass) {
+                        VkExtent2D extent, VkRenderPass pass, float quality) {
     Slot& s = slot(i);
     const VkExtent2D internal = post_.extent();
     fillFrameData(static_cast<FrameData*>(s.ubo.mapped), vs, internal, timeSec, dt);
@@ -150,6 +150,7 @@ void RenderCore::record(uint32_t i, const VisualState& vs, float timeSec, float 
     fi.time = timeSec;
     fi.dt = dt;
     fi.sceneTime = vs.sceneTime;
+    fi.quality = quality;
 
     a->prepare(s.cmd, fi);
     if (transitioning) b->prepare(s.cmd, fi);

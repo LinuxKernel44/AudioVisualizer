@@ -21,7 +21,13 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ControlsPanel(c: Controls, onChange: (Controls) -> Unit, modifier: Modifier = Modifier) {
+fun ControlsPanel(
+    c: Controls,
+    onChange: (Controls) -> Unit,
+    showPerf: Boolean,
+    onShowPerf: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     @Composable
     fun row(label: String, value: Float, range: ClosedFloatingPointRange<Float>, fmt: String, set: (Float) -> Controls) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -48,7 +54,13 @@ fun ControlsPanel(c: Controls, onChange: (Controls) -> Unit, modifier: Modifier 
                     FilterChip(selected = c.palette == i, onClick = { onChange(c.copy(palette = i)) }, label = { Text(n) })
                 }
             }
-            TextButton(onClick = { onChange(Controls()) }) { Text("Reset") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { onChange(Controls()) }) { Text("Reset") }
+                Row {
+                    Text("Performance overlay", color = Color.White, modifier = Modifier.padding(top = 14.dp, end = 8.dp))
+                    androidx.compose.material3.Switch(checked = showPerf, onCheckedChange = onShowPerf)
+                }
+            }
         }
     }
 }

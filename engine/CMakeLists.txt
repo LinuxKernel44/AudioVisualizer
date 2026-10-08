@@ -62,10 +62,13 @@ if(ANDROID)
         src/export/encoders.cpp
         src/export/export_job.cpp
         src/render/scenes/registry.cpp
+        src/render/scenes/particle_scene.cpp
         src/render/vulkan_renderer.cpp)
     add_dependencies(avengine avshaders)
     target_include_directories(avengine PRIVATE ${GEN_DIR})
     target_compile_options(avengine PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
+    # APIs newer than minSdk (ADPF, API 33) are weak symbols and called behind __builtin_available.
+    target_compile_definitions(avengine PRIVATE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
     target_link_libraries(avengine PRIVATE avcore log android aaudio mediandk vulkan)
     # 16 KB page-size support for Android 15+ devices.
     target_link_options(avengine PRIVATE -Wl,-z,max-page-size=16384)

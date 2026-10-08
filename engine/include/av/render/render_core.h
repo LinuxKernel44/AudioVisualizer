@@ -34,7 +34,7 @@ public:
     /// Fills the frame uniforms and records every scene and post pass into `cmd` (slot `i`'s
     /// command buffer, already begun). The composite pass renders into `fb` (compatible with `pass`).
     void record(uint32_t i, const VisualState& vs, float timeSec, float dt, VkFramebuffer fb,
-                VkExtent2D extent, VkRenderPass pass);
+                VkExtent2D extent, VkRenderPass pass, float quality = 1.f);
 
     size_t sceneCount() const { return scenes_.size(); }
     const char* sceneName(size_t i) const { return scenes_[i % scenes_.size()]->name(); }

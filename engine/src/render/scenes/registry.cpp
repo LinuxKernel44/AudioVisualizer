@@ -12,6 +12,7 @@ std::vector<std::unique_ptr<Scene>> createBuiltinScenes() {
     s.push_back(std::make_unique<FullscreenScene>("radial-spectrum", shaders::ring_frag, shaders::ring_fragSize));
     s.push_back(std::make_unique<FullscreenScene>("kaleido-tunnel", shaders::tunnel_frag, shaders::tunnel_fragSize));
     s.push_back(std::make_unique<FullscreenScene>("fractal-flight", shaders::fractal_frag, shaders::fractal_fragSize));
+    s.push_back(createParticleScene());
     return s;
 }
 

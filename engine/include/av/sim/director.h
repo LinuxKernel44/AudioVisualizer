@@ -9,7 +9,7 @@
 namespace av {
 
 /// Built-in scene indices (order of createBuiltinScenes()).
-enum SceneId : uint32_t { kSceneBars = 0, kSceneRing = 1, kSceneTunnel = 2, kSceneFractal = 3, kSceneCount };
+enum SceneId : uint32_t { kSceneBars = 0, kSceneRing = 1, kSceneTunnel = 2, kSceneFractal = 3, kSceneParticles = 4, kSceneCount };
 
 /// Chooses scene, transition and look from the musical structure. In automatic mode the output is
 /// a pure function of the playback position (so it survives seeking and is reproducible for

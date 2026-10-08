@@ -71,6 +71,12 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         handleIntent(intent)
+        vm.engine.setTargetFps(display?.refreshRate ?: 60f)
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            pm.addThermalStatusListener(mainExecutor) { status -> vm.onThermalStatus(status) }
+            vm.onThermalStatus(pm.currentThermalStatus)
+        }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
                 PlayerScreen(vm)
@@ -98,8 +104,10 @@ private fun PlayerScreen(vm: PlayerViewModel) {
         }
     }
     LaunchedEffect(Unit) {
+        var tick = 0
         while (true) {
             vm.refresh()
+            if (tick++ % 2 == 0) vm.pollPerf()
             delay(250)
         }
     }
@@ -150,7 +158,16 @@ private fun PlayerScreen(vm: PlayerViewModel) {
             }
             FilterChip(selected = vm.showControls, onClick = { vm.showControls = !vm.showControls }, label = { Text("Tune") })
         }
-        if (vm.showControls) ControlsPanel(vm.controls, { vm.updateControls(it) }, Modifier.padding(top = 8.dp))
+        if (vm.showControls) ControlsPanel(vm.controls, { vm.updateControls(it) }, vm.showPerf, { vm.showPerf = it }, Modifier.padding(top = 8.dp))
+        }
+        if (vm.showPerf) {
+            Text(
+                vm.perfText,
+                color = Color(0xFF8CFF98),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp),
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 110.dp, end = 12.dp),
+            )
         }
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp),
