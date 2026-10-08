@@ -150,6 +150,7 @@ std::vector<uint8_t> serialize(const Timeline& t) {
     w.putVec(t.beatBar);
     w.put(t.beatsPerBar);
     w.put(t.downbeatConfidence);
+    w.put(t.beatSource);
     w.putVec(t.onsets);
     for (float v : t.chromaMean) w.put(v);
     w.put<int32_t>(t.key);
@@ -196,6 +197,7 @@ bool deserialize(const uint8_t* data, size_t size, Timeline* out, std::string* e
     t.beatBar = r.getVec<uint8_t>();
     t.beatsPerBar = r.get<uint32_t>();
     t.downbeatConfidence = r.get<float>();
+    t.beatSource = r.get<uint32_t>();
     t.onsets = r.getVec<Onset>();
     for (float& v : t.chromaMean) v = r.get<float>();
     t.key = r.get<int32_t>();

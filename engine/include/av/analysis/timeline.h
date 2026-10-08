@@ -58,7 +58,7 @@ struct Onset {
 };
 
 struct Timeline {
-    static constexpr uint32_t kVersion = 1;
+    static constexpr uint32_t kVersion = 2;
 
     double sampleRate = 0;
     uint32_t hop = 0;
@@ -77,6 +77,7 @@ struct Timeline {
     std::vector<uint8_t> beatBar;    // position inside the bar, 0 = downbeat
     uint32_t beatsPerBar = 4;
     float downbeatConfidence = 0.f;
+    uint32_t beatSource = 0;  // 0 = classical DSP, 1 = Beat This! model
     std::vector<Onset> onsets;
 
     // Tonality / loudness / dynamics

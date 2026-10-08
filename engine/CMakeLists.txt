@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 project(AudioVisualizerEngine LANGUAGES C CXX)
+find_package(Threads REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(AV_BUILD_TESTS "Build host unit tests" OFF)
+option(AV_BUILD_TOOLS "Build host command-line tools" OFF)
 
 # --- Vendored PFFFT (C, built without warnings-as-errors) ---
 set(PFFFT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/pffft)
@@ -18,6 +20,7 @@ set_target_properties(pffft PROPERTIES C_STANDARD 11)
 add_library(avcore STATIC src/core/version.cpp src/dsp/spectrum.cpp src/dsp/bar_spectrum.cpp src/dsp/spectrum_worker.cpp src/dsp/stft.cpp
     src/analysis/pcm_source.cpp src/analysis/timeline.cpp src/analysis/loudness.cpp
     src/analysis/features.cpp src/analysis/rhythm.cpp src/analysis/sections.cpp
+    src/ml/log_mel.cpp src/ml/resampler.cpp src/ml/beat_inference.cpp src/ml/beat_timeline.cpp
     src/analysis/analyzer.cpp src/analysis/summary.cpp src/sim/timeline_sampler.cpp src/sim/director.cpp src/sim/front_end.cpp)
 target_include_directories(avcore PUBLIC include)
 target_link_libraries(avcore PUBLIC pffft)
@@ -47,12 +50,21 @@ if(ANDROID)
     endforeach()
     add_custom_target(avshaders DEPENDS ${SHADER_HEADERS})
 
+    # ONNX Runtime (unpacked from its AAR by Gradle) for the optional beat model.
+    if(ORT_ROOT)
+        add_library(onnxruntime SHARED IMPORTED)
+        set_target_properties(onnxruntime PROPERTIES
+            IMPORTED_LOCATION ${ORT_ROOT}/jni/${ANDROID_ABI}/libonnxruntime.so)
+        target_include_directories(onnxruntime INTERFACE ${ORT_ROOT}/headers)
+    endif()
+
     add_library(avengine SHARED
         src/jni/engine_jni.cpp
         src/core/engine.cpp
         src/audio/decoder.cpp
         src/audio/player.cpp
         src/analysis/analysis_job.cpp
+        src/ml/beat_pass.cpp
         src/render/vk_context.cpp
         src/render/scene_common.cpp
         src/render/post_chain.cpp
@@ -70,8 +82,18 @@ if(ANDROID)
     # APIs newer than minSdk (ADPF, API 33) are weak symbols and called behind __builtin_available.
     target_compile_definitions(avengine PRIVATE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
     target_link_libraries(avengine PRIVATE avcore log android aaudio mediandk vulkan)
+    if(ORT_ROOT)
+        target_sources(avengine PRIVATE src/ml/onnx_beat_model.cpp)
+        target_link_libraries(avengine PRIVATE onnxruntime)
+        target_compile_definitions(avengine PRIVATE AV_HAS_ORT=1)
+    endif()
     # 16 KB page-size support for Android 15+ devices.
     target_link_options(avengine PRIVATE -Wl,-z,max-page-size=16384)
+endif()
+
+if(AV_BUILD_TOOLS OR AV_BUILD_TESTS)
+    add_executable(av_inspect tools/av_inspect.cpp)
+    target_link_libraries(av_inspect PRIVATE avcore Threads::Threads)
 endif()
 
 if(AV_BUILD_TESTS)
@@ -82,7 +104,7 @@ if(AV_BUILD_TESTS)
     FetchContent_Declare(googletest
         URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.tar.gz)
     FetchContent_MakeAvailable(googletest)
-    add_executable(av_tests tests/version_test.cpp tests/ring_test.cpp tests/spectrum_test.cpp tests/bar_spectrum_test.cpp tests/loudness_test.cpp tests/analysis_test.cpp tests/timeline_sampler_test.cpp tests/director_test.cpp tests/front_end_test.cpp)
+    add_executable(av_tests tests/version_test.cpp tests/ring_test.cpp tests/spectrum_test.cpp tests/bar_spectrum_test.cpp tests/loudness_test.cpp tests/analysis_test.cpp tests/timeline_sampler_test.cpp tests/director_test.cpp tests/front_end_test.cpp tests/ml_test.cpp)
     target_link_libraries(av_tests PRIVATE avcore GTest::gtest_main Threads::Threads)
     include(GoogleTest)
     gtest_discover_tests(av_tests)

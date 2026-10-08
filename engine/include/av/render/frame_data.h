@@ -18,8 +18,9 @@ struct alignas(16) FrameData {
     float bars[VisualState::kMaxBars];
     float wave[VisualState::kWaveSamples];
     float ctl[4];     // transition, sceneTime, bar count, unused
+    float brand[4];   // overlay opacity, background opacity, unused, unused
 };
 static_assert(sizeof(FrameData) % 16 == 0, "std140 block must be a multiple of 16 bytes");
-static_assert(sizeof(FrameData) == 16 * (5 + 4 + 2 + 32 + 64 + 1 + 0) + 0, "layout drift vs common.glsl");
+static_assert(sizeof(FrameData) == 16 * (5 + 4 + 2 + 32 + 64 + 1 + 1), "layout drift vs common.glsl");
 
 }  // namespace av

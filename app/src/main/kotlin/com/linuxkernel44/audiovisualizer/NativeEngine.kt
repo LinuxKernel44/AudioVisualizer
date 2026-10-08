@@ -26,6 +26,10 @@ class NativeEngine {
     fun setScene(index: Int) = setScene(handle, index)
     fun sceneIndex(): Int = sceneIndex(handle)
     fun setCacheDir(dir: String) = setCacheDir(handle, dir)
+    fun setBeatModel(path: String) = setBeatModel(handle, path)
+    fun setOverlay(l: Layer?) = setOverlay(handle, l?.rgba, l?.width ?: 0, l?.height ?: 0)
+    fun setBackground(l: Layer?) = setBackground(handle, l?.rgba, l?.width ?: 0, l?.height ?: 0)
+    fun setBrandingOpacity(overlay: Float, background: Float) = setBrandingOpacity(handle, overlay, background)
     fun analysisState(): Int = analysisState(handle)
     fun analysisProgress(): Float = analysisProgress(handle)
     fun analysisFromCache(): Boolean = analysisFromCache(handle)
@@ -60,6 +64,10 @@ class NativeEngine {
     private external fun setScene(h: Long, index: Int)
     private external fun sceneIndex(h: Long): Int
     private external fun setCacheDir(h: Long, dir: String)
+    private external fun setBeatModel(h: Long, path: String)
+    private external fun setOverlay(h: Long, rgba: ByteArray?, w: Int, ht: Int)
+    private external fun setBackground(h: Long, rgba: ByteArray?, w: Int, ht: Int)
+    private external fun setBrandingOpacity(h: Long, overlay: Float, background: Float)
     private external fun analysisState(h: Long): Int
     private external fun analysisProgress(h: Long): Float
     private external fun analysisFromCache(h: Long): Boolean

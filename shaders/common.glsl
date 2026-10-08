@@ -10,6 +10,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBlock {
     vec4 barsPk[32];
     vec4 wavePk[64];
     vec4 ctl;       // x = transition, y = scene time, z = bar count
+    vec4 brand;     // x = overlay opacity, y = background opacity
 } F;
 
 float barAt(int i) { return F.barsPk[i >> 2][i & 3]; }

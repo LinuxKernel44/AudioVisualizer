@@ -11,11 +11,17 @@
 #include "av/analysis/analyzer.h"
 #include "av/audio/decoder.h"
 #include "av/audio/decoder_pcm_source.h"
+#include "av/ml/beat_pass.h"
+#include "av/ml/beat_timeline.h"
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "av.analysis", __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "av.analysis", __VA_ARGS__)
 
 namespace av {
+
+/// Bump whenever the analysis algorithms change in a way that alters results, so stale cache entries
+/// are ignored. (Rev 3: ML beat gates for regularity and onset alignment.)
+constexpr int kAnalysisRevision = 3;
 
 uint64_t fingerprintFd(int fd) {
     struct stat st {};
@@ -42,7 +48,7 @@ uint64_t fingerprintFd(int fd) {
     return h;
 }
 
-void AnalysisJob::start(int fd, const std::string& cacheDir) {
+void AnalysisJob::start(int fd, const std::string& cacheDir, const std::string& modelPath) {
     cancel();
     cancel_.store(false);
     state_.store(State::Running);
@@ -54,18 +60,30 @@ void AnalysisJob::start(int fd, const std::string& cacheDir) {
         error_.clear();
     }
     const int own = dup(fd);
-    thread_ = std::thread([this, own, cacheDir] { run(own, cacheDir); });
+    thread_ = std::thread([this, own, cacheDir, modelPath] { run(own, cacheDir, modelPath); });
 }
 
 std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cacheDir,
                                                   const std::atomic<bool>* cancel,
                                                   const std::function<void(float)>& progress,
-                                                  bool* fromCache, std::string* error) {
+                                                  bool* fromCache, std::string* error,
+                                                  const std::string& modelPath) {
     if (fromCache) *fromCache = false;
+    const bool useMl = !modelPath.empty() && beatModelAvailable();
     std::string cachePath;
     if (!cacheDir.empty()) {
-        char name[64];
-        std::snprintf(name, sizeof name, "/%016llx.avt", static_cast<unsigned long long>(fingerprintFd(fd)));
+        // The cache entry depends on the audio and on whether/which beat model produced the rhythm.
+        char name[96];
+        unsigned long long modelTag = 0;
+        if (useMl) {
+            if (FILE* mf = std::fopen(modelPath.c_str(), "rb")) {
+                std::fseek(mf, 0, SEEK_END);
+                modelTag = static_cast<unsigned long long>(std::ftell(mf));
+                std::fclose(mf);
+            }
+        }
+        std::snprintf(name, sizeof name, "/%016llx-%s%llu-r%d.avt", static_cast<unsigned long long>(fingerprintFd(fd)),
+                      useMl ? "ml" : "dsp", modelTag, kAnalysisRevision);
         cachePath = cacheDir + name;
         if (FILE* f = std::fopen(cachePath.c_str(), "rb")) {
             std::vector<uint8_t> bytes;
@@ -98,6 +116,17 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
     opts.expectedDurationSec = static_cast<double>(dec.durationUs()) / 1e6;
     opts.cancel = cancel;
     opts.progress = progress;
+    if (useMl) {
+        opts.refineRhythm = [&](Timeline& tl) {
+            BeatTimes bt;
+            std::string merr;
+            if (!runBeatModelPass(fd, modelPath, cancel, nullptr, &bt, &merr)) {
+                LOGE("beat model unavailable, keeping the DSP rhythm: %s", merr.c_str());
+                return;
+            }
+            if (!applyMlBeats(bt, &tl)) LOGI("beat model found no usable beats, keeping the DSP rhythm");
+        };
+    }
     auto t = std::make_shared<Timeline>();
     const auto t0 = std::chrono::steady_clock::now();
     if (!analyzeAudio(src, opts, t.get(), &err)) {
@@ -121,10 +150,10 @@ std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cac
     return t;
 }
 
-void AnalysisJob::run(int fd, std::string cacheDir) {
+void AnalysisJob::run(int fd, std::string cacheDir, std::string modelPath) {
     bool cached = false;
     std::string err;
-    auto t = analyzeFileCached(fd, cacheDir, &cancel_, [this](float p) { progress_.store(p); }, &cached, &err);
+    auto t = analyzeFileCached(fd, cacheDir, &cancel_, [this](float p) { progress_.store(p); }, &cached, &err, modelPath);
     ::close(fd);
     if (!t) {
         LOGE("analysis failed: %s", err.c_str());

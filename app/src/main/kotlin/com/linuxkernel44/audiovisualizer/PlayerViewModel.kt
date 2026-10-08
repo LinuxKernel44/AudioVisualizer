@@ -53,6 +53,63 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("controls", android.content.Context.MODE_PRIVATE)
     var controls by mutableStateOf(Controls.load(prefs))
         private set
+    private val brandPrefs = app.getSharedPreferences("branding", android.content.Context.MODE_PRIVATE)
+    var branding by mutableStateOf(Branding.load(brandPrefs))
+        private set
+    var showBranding by mutableStateOf(false)
+    private var surfaceW = 0
+    private var surfaceH = 0
+    private var titleAutoFilled = true
+
+    fun updateBranding(b: Branding) {
+        // Manual edits stop automatic title/artist filling for the current track.
+        if (b.title != branding.title || b.artist != branding.artist) titleAutoFilled = false
+        branding = b
+        b.save(brandPrefs)
+        applyBranding()
+    }
+
+    fun onSurfaceSize(w: Int, h: Int) {
+        if (w == surfaceW && h == surfaceH) return
+        surfaceW = w
+        surfaceH = h
+        applyBranding()
+    }
+
+    /** Rebuilds the branding layers at about half the surface size and hands them to the renderer. */
+    private fun applyBranding() {
+        val b = branding
+        val w = surfaceW / 2 * 2
+        val h = surfaceH / 2 * 2
+        if (w < 16 || h < 16) return
+        engine.setBrandingOpacity(b.overlayOpacity, if (b.hasBackground) b.backgroundOpacity else 0f)
+        worker.execute {
+            val ctx = getApplication<Application>()
+            val sw = (w / 2).coerceAtLeast(16)
+            val sh = (h / 2).coerceAtLeast(16)
+            engine.setOverlay(BrandingRenderer.overlay(ctx, b, sw, sh))
+            engine.setBackground(BrandingRenderer.background(ctx, b, sw, sh))
+        }
+    }
+
+    private fun fillTitleFromMetadata(uri: Uri) {
+        try {
+            val r = android.media.MediaMetadataRetriever()
+            r.setDataSource(getApplication<Application>(), uri)
+            val t = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)
+            val a = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            r.release()
+            if (titleAutoFilled || branding.title.isBlank()) {
+                val nb = branding.copy(title = t ?: (trackName ?: "").substringBeforeLast('.'), artist = a ?: "")
+                branding = nb
+                nb.save(brandPrefs)
+                titleAutoFilled = true
+                applyBranding()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     var showControls by mutableStateOf(false)
     var showPerf by mutableStateOf(false)
     var perfText by mutableStateOf("")
@@ -79,6 +136,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         engine.setControls(controls)
+        engine.setBeatModel(BeatModel.path(app))
+        engine.setBrandingOpacity(branding.overlayOpacity, if (branding.hasBackground) branding.backgroundOpacity else 0f)
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }
         engine.setCacheDir(dir.absolutePath)
     }
@@ -123,6 +182,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             loading = false
             if (err == null) {
                 trackName = name ?: "Audio"
+                fillTitleFromMetadata(uri)
                 durationMs = engine.durationMs()
                 positionMs = 0
                 engine.play()

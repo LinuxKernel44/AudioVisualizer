@@ -200,6 +200,7 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         t.beatsPerBar = db.beatsPerBar;
         t.downbeatConfidence = db.confidence;
     }
+    if (opts.refineRhythm) opts.refineRhythm(t);
     t.onsets = pickOnsets(t);
 
     // Structure: loudness per group + energy curve.

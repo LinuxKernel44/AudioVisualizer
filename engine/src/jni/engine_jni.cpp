@@ -38,6 +38,11 @@ JNI(void, setSurface)(JNIEnv* env, jobject, jlong h, jobject surface) {
     if (w) ANativeWindow_release(w);
 }
 
+JNI(void, setBeatModel)(JNIEnv* env, jobject, jlong h, jstring path) {
+    const char* c = env->GetStringUTFChars(path, nullptr);
+    from(h)->setBeatModel(c);
+    env->ReleaseStringUTFChars(path, c);
+}
 JNI(void, setCacheDir)(JNIEnv* env, jobject, jlong h, jstring dir) {
     const char* c = env->GetStringUTFChars(dir, nullptr);
     from(h)->setCacheDir(c);
@@ -70,6 +75,26 @@ JNI(void, setControls)(JNIEnv*, jobject, jlong h, jfloat sensitivity, jfloat gai
     from(h)->setSettings(s);
 }
 
+namespace {
+std::vector<uint8_t> bytesOf(JNIEnv* env, jbyteArray a) {
+    std::vector<uint8_t> v;
+    if (!a) return v;
+    const jsize n = env->GetArrayLength(a);
+    v.resize(static_cast<size_t>(n));
+    env->GetByteArrayRegion(a, 0, n, reinterpret_cast<jbyte*>(v.data()));
+    return v;
+}
+}  // namespace
+
+JNI(void, setOverlay)(JNIEnv* env, jobject, jlong h, jbyteArray rgba, jint w, jint ht) {
+    from(h)->setOverlayImage(bytesOf(env, rgba), static_cast<uint32_t>(w), static_cast<uint32_t>(ht));
+}
+JNI(void, setBackground)(JNIEnv* env, jobject, jlong h, jbyteArray rgba, jint w, jint ht) {
+    from(h)->setBackgroundImage(bytesOf(env, rgba), static_cast<uint32_t>(w), static_cast<uint32_t>(ht));
+}
+JNI(void, setBrandingOpacity)(JNIEnv*, jobject, jlong h, jfloat overlay, jfloat background) {
+    from(h)->setBrandingOpacity(overlay, background);
+}
 JNI(void, setTargetFps)(JNIEnv*, jobject, jlong h, jfloat fps) { from(h)->setTargetFps(fps); }
 JNI(void, setThermalLevel)(JNIEnv*, jobject, jlong h, jint level) { from(h)->setThermalLevel(level); }
 JNI(void, setAutoScale)(JNIEnv*, jobject, jlong h, jboolean on) { from(h)->setAutoScale(on); }
@@ -94,7 +119,9 @@ av::ExportJob* job(jlong h) { return reinterpret_cast<av::ExportJob*>(h); }
 JNIX(jlong, start)(JNIEnv* env, jobject, jint audioFd, jint outFd, jint width, jint height, jint fps,
                    jint videoBitrate, jint audioBitrate, jint scene, jfloat renderScale, jfloat sensitivity,
                    jfloat gainBass, jfloat gainMid, jfloat gainTreble, jfloat smoothing, jint palette,
-                   jfloat beatFlash, jfloat bloom, jstring cacheDir) {
+                   jfloat beatFlash, jfloat bloom, jstring cacheDir, jstring modelPath, jbyteArray overlay,
+                   jint overlayW, jint overlayH, jbyteArray background, jint backgroundW, jint backgroundH,
+                   jfloat overlayOpacity, jfloat backgroundOpacity) {
     av::ExportParams p;
     p.audioFd = audioFd;
     p.outFd = outFd;
@@ -116,6 +143,17 @@ JNIX(jlong, start)(JNIEnv* env, jobject, jint audioFd, jint outFd, jint width, j
     const char* c = env->GetStringUTFChars(cacheDir, nullptr);
     p.cacheDir = c;
     env->ReleaseStringUTFChars(cacheDir, c);
+    const char* m = env->GetStringUTFChars(modelPath, nullptr);
+    p.modelPath = m;
+    env->ReleaseStringUTFChars(modelPath, m);
+    p.overlay = bytesOf(env, overlay);
+    p.overlayW = static_cast<uint32_t>(overlayW);
+    p.overlayH = static_cast<uint32_t>(overlayH);
+    p.background = bytesOf(env, background);
+    p.backgroundW = static_cast<uint32_t>(backgroundW);
+    p.backgroundH = static_cast<uint32_t>(backgroundH);
+    p.overlayOpacity = overlayOpacity;
+    p.backgroundOpacity = backgroundOpacity;
     auto* j = new av::ExportJob(std::move(p));
     j->start();
     return reinterpret_cast<jlong>(j);

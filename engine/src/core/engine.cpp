@@ -39,7 +39,7 @@ bool Engine::load(int fd, std::string* error) {
     }
     decoder_ = std::move(decoder);
     player_ = std::move(player);
-    analysis_.start(fd, cacheDir_);
+    analysis_.start(fd, cacheDir_, modelPath_);
     SpectrumWorker::Playback pb;
     pb.positionSec = [this] { return static_cast<double>(player_->positionMs()) / 1000.0; };
     pb.playing = [this] { return player_->isPlaying(); };

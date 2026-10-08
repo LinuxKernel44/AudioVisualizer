@@ -28,6 +28,9 @@ std::string timelineSummaryJson(const Timeline& t) {
     s += ",\"bpmConfidence\":";
     num(s, t.bpmConfidence, 2);
     s += ",\"beatsPerBar\":" + std::to_string(t.beatsPerBar);
+    s += ",\"beatSource\":\"";
+    s += t.beatSource == 1 ? "ml" : "dsp";
+    s += "\"";
     s += ",\"key\":\"";
     s += pitchClassName(t.key);
     s += "\",\"minor\":";
