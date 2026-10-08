@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Slider
@@ -35,7 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
@@ -65,6 +71,12 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         handleIntent(intent)
+        vm.engine.setTargetFps(display?.refreshRate ?: 60f)
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            pm.addThermalStatusListener(mainExecutor) { status -> vm.onThermalStatus(status) }
+            vm.onThermalStatus(pm.currentThermalStatus)
+        }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
                 PlayerScreen(vm)
@@ -78,6 +90,7 @@ private fun formatTime(ms: Long): String {
     return "%d:%02d".format(s / 60, s % 60)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerScreen(vm: PlayerViewModel) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -91,15 +104,35 @@ private fun PlayerScreen(vm: PlayerViewModel) {
         }
     }
     LaunchedEffect(Unit) {
+        var tick = 0
         while (true) {
             vm.refresh()
+            if (tick++ % 2 == 0) vm.pollPerf()
             delay(250)
         }
     }
 
+    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    if (vm.showExport) {
+        ExportDialog(onDismiss = { vm.showExport = false }) { cfg ->
+            if (android.os.Build.VERSION.SDK_INT >= 33) notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            vm.startExport(ctx, cfg)
+        }
+    }
+    ExportStatus(onDismissResult = { vm.dismissExportResult() })
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+        var swipe by remember { mutableStateOf(0f) }
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { swipe = 0f },
+                    onHorizontalDrag = { _, dx -> swipe += dx },
+                    onDragEnd = {
+                        if (swipe < -120f) vm.cycleScene(1) else if (swipe > 120f) vm.cycleScene(-1)
+                        swipe = 0f
+                    },
+                )
+            },
             factory = { ctx ->
                 SurfaceView(ctx).apply {
                     holder.addCallback(object : SurfaceHolder.Callback {
@@ -114,6 +147,28 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                 }
             },
         )
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 36.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterChip(selected = vm.scene < 0, onClick = { vm.selectScene(-1) }, label = { Text("Auto") })
+            SCENE_NAMES.forEachIndexed { i, n ->
+                FilterChip(selected = vm.scene == i, onClick = { vm.selectScene(i) }, label = { Text(n) })
+            }
+            FilterChip(selected = vm.showControls, onClick = { vm.showControls = !vm.showControls }, label = { Text("Tune") })
+        }
+        if (vm.showControls) ControlsPanel(vm.controls, { vm.updateControls(it) }, vm.showPerf, { vm.showPerf = it }, Modifier.padding(top = 8.dp))
+        }
+        if (vm.showPerf) {
+            Text(
+                vm.perfText,
+                color = Color(0xFF8CFF98),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp),
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 110.dp, end = 12.dp),
+            )
+        }
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp),
             verticalArrangement = Arrangement.SpaceBetween,
@@ -163,6 +218,9 @@ private fun PlayerScreen(vm: PlayerViewModel) {
                     }) { Text("Import") }
                     Button(onClick = { vm.togglePlay() }, enabled = vm.trackName != null) {
                         Text(if (vm.playing) "Pause" else "Play")
+                    }
+                    Button(onClick = { vm.showExport = true }, enabled = vm.trackName != null && vm.summary != null && !ExportController.running) {
+                        Text("Export")
                     }
                 }
             }

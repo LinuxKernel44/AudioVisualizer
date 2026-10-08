@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -56,5 +57,12 @@ private:
 
 /// 64-bit content fingerprint of an open file (size plus evenly spaced sampled blocks).
 uint64_t fingerprintFd(int fd);
+
+/// Loads the cached analysis for the audio behind `fd`, or analyses it (and fills the cache).
+/// Blocking; used by AnalysisJob and the exporter. Returns null on failure/cancel (sets `error`).
+std::shared_ptr<const Timeline> analyzeFileCached(int fd, const std::string& cacheDir,
+                                                  const std::atomic<bool>* cancel,
+                                                  const std::function<void(float)>& progress,
+                                                  bool* fromCache, std::string* error);
 
 }  // namespace av

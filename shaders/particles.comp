@@ -1,0 +1,74 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+layout(local_size_x = 256) in;
+
+struct Particle {
+    vec4 a;  // xyz = position, w = life (1 -> 0)
+    vec4 b;  // xyz = velocity, w = seed
+};
+layout(set = 1, binding = 0, std430) buffer Particles { Particle p[]; } buf;
+layout(push_constant) uniform PC { uint mode; uint count; } pc;  // mode 0 = init, 1 = update
+
+vec3 rand3(uint i, float salt) {
+    float f = float(i);
+    return vec3(hash11(f * 0.37 + salt), hash11(f * 0.73 + salt + 11.0), hash11(f * 1.13 + salt + 23.0));
+}
+vec3 randDir(uint i, float salt) {
+    vec3 r = rand3(i, salt) * 2.0 - 1.0;
+    float l = length(r);
+    return l > 1e-3 ? r / l : vec3(0.0, 1.0, 0.0);
+}
+
+// Cheap divergence-free-looking flow field.
+vec3 flow(vec3 q, float t) {
+    return vec3(sin(q.y * 1.7 + t * 0.30) + cos(q.z * 2.1 - t * 0.2),
+                sin(q.z * 1.3 + t * 0.20) + cos(q.x * 1.9 + t * 0.1),
+                sin(q.x * 1.1 + t * 0.25) + cos(q.y * 2.3 - t * 0.15));
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+    float t = timeS();
+    Particle q = buf.p[i];
+
+    if (pc.mode == 0u) {
+        q.a = vec4(randDir(i, 1.0) * (0.2 + 1.2 * hash11(float(i) * 0.91)), hash11(float(i) * 0.17));
+        q.b = vec4(randDir(i, 2.0) * 0.2, hash11(float(i) * 0.53));
+        buf.p[i] = q;
+        return;
+    }
+
+    float dt = clamp(F.fx2.w, 0.0, 0.05);
+    float bass = bandAt(0) * 0.5 + bandAt(1) * 0.5;
+    float mid = bandAt(3);
+    float pulse = beatPulse();
+    float kick = kickAmt();
+
+    vec3 pos = q.a.xyz;
+    vec3 vel = q.b.xyz;
+    float r = max(length(pos), 1e-3);
+    vec3 radial = pos / r;
+
+    float shell = 1.0 + 0.55 * bass + 0.45 * pulse;
+    vec3 force = vec3(0.0);
+    force += flow(pos, t) * (0.35 + 0.9 * mid);                       // turbulence follows the mids
+    force += cross(vec3(0.0, 1.0, 0.0), pos) * (0.4 + 0.8 * bass);   // swirl follows the bass
+    force += radial * (shell - r) * 1.6;                              // spring towards a breathing shell
+    if (kick > 0.25 && hash11(float(i) * 0.31 + floor(t * 30.0)) < 0.30) vel += radial * kick * 3.0;  // kick burst
+
+    vel += force * dt;
+    vel *= pow(0.975, dt * 60.0);
+    pos += vel * dt;
+    float life = q.a.w - dt * (0.12 + 0.15 * q.b.w);
+
+    if (life <= 0.0) {  // respawn near the core, flung outwards with the overall level
+        float salt = t + float(i);
+        pos = randDir(i, salt) * (0.05 + 0.25 * hash11(salt));
+        vel = randDir(i, salt + 3.0) * (0.4 + 2.2 * rmsAmt() + 1.2 * pulse);
+        life = 1.0;
+    }
+    buf.p[i] = Particle(vec4(pos, life), vec4(vel, q.b.w));
+}

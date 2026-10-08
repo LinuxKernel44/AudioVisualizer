@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import java.util.concurrent.Executors
 
+val SCENE_NAMES = listOf("Bars", "Radial", "Tunnel", "Fractal", "Particles")
+
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val engine = NativeEngine()
     private val worker = Executors.newSingleThreadExecutor()
@@ -33,13 +35,73 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var summary by mutableStateOf<AnalysisSummary?>(null)
         private set
+    /** -1 = automatic (the director follows the song structure), otherwise a scene index. */
+    var scene by mutableStateOf(-1)
+        private set
+
+    fun selectScene(index: Int) {
+        scene = index
+        engine.setScene(index)
+    }
+
+    fun cycleScene(delta: Int) {
+        val n = SCENE_NAMES.size
+        val base = if (scene < 0) 0 else scene
+        selectScene(((base + delta) % n + n) % n)
+    }
+
+    private val prefs = app.getSharedPreferences("controls", android.content.Context.MODE_PRIVATE)
+    var controls by mutableStateOf(Controls.load(prefs))
+        private set
+    var showControls by mutableStateOf(false)
+    var showPerf by mutableStateOf(false)
+    var perfText by mutableStateOf("")
+    var thermalStatus by mutableStateOf(0)
+        private set
+
+    fun onThermalStatus(status: Int) {
+        thermalStatus = status
+        engine.setThermalLevel(status)
+    }
+
+    fun pollPerf() {
+        if (!showPerf) return
+        val p = engine.perf()
+        val fps = if (p[0] > 0f) 1000f / p[0] else 0f
+        perfText = "%.0f fps (target %.0f)\nGPU %.1f ms\nscale %.2f\nthermal %d".format(fps, p[3], p[1], p[2], thermalStatus)
+    }
+
+    fun updateControls(c: Controls) {
+        controls = c
+        engine.setControls(c)
+        c.save(prefs)
+    }
 
     init {
+        engine.setControls(controls)
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }
         engine.setCacheDir(dir.absolutePath)
     }
 
+    var currentUri: Uri? = null
+        private set
+    var showExport by mutableStateOf(false)
+
+    fun startExport(ctx: android.content.Context, cfg: ExportConfig) {
+        val uri = currentUri ?: return
+        showExport = false
+        engine.pause()
+        refresh()
+        ExportService.start(ctx, uri, trackName ?: "track", cfg, controls, scene)
+    }
+
+    fun dismissExportResult() {
+        ExportController.resultUri = null
+        ExportController.error = null
+    }
+
     fun open(uri: Uri) {
+        currentUri = uri
         loading = true
         error = null
         summary = null

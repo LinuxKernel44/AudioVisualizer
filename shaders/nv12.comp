@@ -1,0 +1,37 @@
+#version 450
+// Converts the final RGBA8 frame to NV12 (BT.709, limited range) in a tightly packed buffer:
+// the Y plane (w*h bytes) followed by the interleaved UV plane (w*h/2 bytes). Each invocation
+// handles four horizontally adjacent pixels; even rows also emit the chroma for two 2x2 blocks.
+layout(local_size_x = 16, local_size_y = 8) in;
+layout(set = 0, binding = 0) uniform sampler2D src;
+layout(set = 0, binding = 1, std430) writeonly buffer OutBuf { uint data[]; } outb;
+layout(push_constant) uniform PC { uint w; uint h; } pc;
+
+vec3 px(ivec2 p) { return texelFetch(src, p, 0).rgb; }
+uint q(float v, float lo, float hi) { return uint(clamp(floor(v + 0.5), lo, hi)); }
+uint yByte(vec3 c) { return q(16.0 + 219.0 * dot(c, vec3(0.2126, 0.7152, 0.0722)), 16.0, 235.0); }
+uint uByte(vec3 c) {
+    float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    return q(128.0 + 224.0 * (c.b - y) / 1.8556, 16.0, 240.0);
+}
+uint vByte(vec3 c) {
+    float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    return q(128.0 + 224.0 * (c.r - y) / 1.5748, 16.0, 240.0);
+}
+
+void main() {
+    uint gx = gl_GlobalInvocationID.x;
+    uint gy = gl_GlobalInvocationID.y;
+    if (gx * 4u >= pc.w || gy >= pc.h) return;
+    ivec2 base = ivec2(int(gx * 4u), int(gy));
+    vec3 c0 = px(base), c1 = px(base + ivec2(1, 0)), c2 = px(base + ivec2(2, 0)), c3 = px(base + ivec2(3, 0));
+    outb.data[(gy * pc.w) / 4u + gx] = yByte(c0) | (yByte(c1) << 8) | (yByte(c2) << 16) | (yByte(c3) << 24);
+    if ((gy & 1u) == 0u) {
+        vec3 d0 = px(base + ivec2(0, 1)), d1 = px(base + ivec2(1, 1));
+        vec3 d2 = px(base + ivec2(2, 1)), d3 = px(base + ivec2(3, 1));
+        vec3 a = (c0 + c1 + d0 + d1) * 0.25;
+        vec3 b = (c2 + c3 + d2 + d3) * 0.25;
+        outb.data[(pc.w * pc.h) / 4u + (gy / 2u) * (pc.w / 4u) + gx] =
+            uByte(a) | (vByte(a) << 8) | (uByte(b) << 16) | (vByte(b) << 24);
+    }
+}
