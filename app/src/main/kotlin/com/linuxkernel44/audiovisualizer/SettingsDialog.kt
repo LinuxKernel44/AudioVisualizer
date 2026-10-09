@@ -87,7 +87,7 @@ fun SettingsDialog(vm: PlayerViewModel, onDismiss: () -> Unit) {
                     OutlinedTextField(newName, { newName = it }, label = { Text("Save current as…") }, singleLine = true, modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.savePreset(newName); newName = "" }, enabled = newName.isNotBlank()) { Text("Save") }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { importPicker.launch(arrayOf("application/json", "text/*", "*/*")) }) { Text("Import") }
                     TextButton(onClick = {
                         ctx.startActivity(Intent.createChooser(
@@ -100,10 +100,12 @@ fun SettingsDialog(vm: PlayerViewModel, onDismiss: () -> Unit) {
                     tokenInput, { tokenInput = it }, label = { Text(if (vm.hasToken) "Token saved — enter a new one to replace" else "GitHub token (read-only)") },
                     singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Wrapping row: three text buttons do not fit side by side in a dialog, and a plain Row
+                // squeezed the last one into a one-letter-wide column.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { vm.saveToken(tokenInput); tokenInput = "" }, enabled = tokenInput.isNotBlank()) { Text("Save token") }
                     if (vm.hasToken) TextButton(onClick = { vm.clearToken() }) { Text("Forget token") }
-                    TextButton(onClick = { vm.checkPresetUpdates() }, enabled = vm.hasToken && !vm.updating) { Text("Check for updates") }
+                    TextButton(onClick = { vm.checkPresetUpdates() }, enabled = vm.hasToken && !vm.updating) { Text("Check for updates", maxLines = 1) }
                 }
                 if (vm.updateStatus.isNotEmpty()) Text(vm.updateStatus)
                 HorizontalDivider()
