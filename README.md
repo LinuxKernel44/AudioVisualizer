@@ -34,7 +34,15 @@ video export live in a multi-threaded C++20 engine reached through a single JNI 
 | Preview | 60 fps for bars / radial / tunnel / fractal; particles adapt resolution to hold 60 fps |
 | Export 720p30 / 1080p60 / 4K30 | 5.7x / 2.0x / 0.7x real time |
 
-The OnePlus 15 has not been measured yet; expect far better numbers.
+## Measured on a OnePlus 15 (Snapdragon SM8850, Android 16)
+| | |
+|---|---|
+| Analysis of a 40 s track | 2.0 s including the beat model |
+| Analysis of a 20 min MP3 / AAC / 1 h MP3 | 2.9 s / 15.5 s / 8.5 s (AAC is decoder bound) |
+| Preview | every scene at the display rate with GPU time 4-12 ms; OxygenOS keeps unlisted apps at 60 Hz |
+| Export 720p30 / 1080p30 / 1080p60 / 1080p120 | 13.7x / 9.0x / 4.5x / ~2.2x real time |
+
+Measured with synthetic test material; 1440p and 4K were not measured on this device yet.
 
 ## Repository layout
 ```

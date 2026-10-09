@@ -53,9 +53,7 @@ class ExportService : Service() {
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "AudioVisualizer"
 
         createChannel()
-        val type = if (Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
-        else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        ServiceCompat.startForeground(this, NOTIF_ID, buildNotification("Starting export…", 0, true), type)
+        goForeground(buildNotification("Starting export…", 0, true))
         ExportController.reset()
         wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AudioVisualizer:export").apply { acquire(6 * 60 * 60 * 1000L) }
@@ -134,6 +132,22 @@ class ExportService : Service() {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
             stopSelf()
         }
+    }
+
+    /**
+     * mediaProcessing is the right type from Android 15, but some vendor builds (OxygenOS 16 on the
+     * OnePlus 15) reject it as "type none"; dataSync, also declared in the manifest, then works.
+     */
+    private fun goForeground(n: Notification) {
+        if (Build.VERSION.SDK_INT >= 35) {
+            try {
+                ServiceCompat.startForeground(this, NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
+                return
+            } catch (e: RuntimeException) {
+                android.util.Log.w("ExportService", "mediaProcessing foreground service refused, using dataSync", e)
+            }
+        }
+        ServiceCompat.startForeground(this, NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     }
 
     private class CancellationException : Exception()

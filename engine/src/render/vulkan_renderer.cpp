@@ -388,8 +388,8 @@ void VulkanRenderer::run() {
     APerformanceHintManager* hintMgr = nullptr;
     APerformanceHintSession* hint = nullptr;
     float hintFps = 0.f;
-    bool hintFailed = false;  // ADPF unsupported here: do not retry every frame
-    bool appliedSaver = false;
+    bool hintFailed = false;   // ADPF unsupported here: do not retry every frame
+    float appliedRate = -1.f;  // frame rate last requested for the current window
 
     while (instanceOk) {
         ANativeWindow* incoming = nullptr;
@@ -410,7 +410,7 @@ void VulkanRenderer::run() {
             vk.destroySurface();
             if (current) ANativeWindow_release(current);
             current = incoming;
-            appliedSaver = false;  // a new window starts at the default frame rate
+            appliedRate = -1.f;  // a new window starts without a frame-rate request
             if (current && vk.createSurface(current)) {
                 if (!vk.deviceReady)
                     vk.deviceReady = vk.ctx.createDevice(vk.surface) && vk.createDeviceResources();
@@ -478,13 +478,14 @@ void VulkanRenderer::run() {
                 }
             }
             vk.core.setBrandingOpacity(overlayOpacity_.load(), backgroundOpacity_.load());
-            if (saver != appliedSaver && current) {
-                if (__builtin_available(
-                        android 30, *)) {  // let the display drop its refresh rate too
-                    ANativeWindow_setFrameRate(current, saver ? 30.f : 0.f,
+            // Ask the display for the rate we render at: without a request, high-refresh phones
+            // keep ordinary apps at 60 Hz; in battery saver this lets the panel drop to 30 Hz.
+            if (current && std::fabs(fpsTarget - appliedRate) > 0.5f) {
+                if (__builtin_available(android 30, *)) {
+                    ANativeWindow_setFrameRate(current, fpsTarget,
                                                ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
                 }
-                appliedSaver = saver;
+                appliedRate = fpsTarget;
             }
             const auto work0 = std::chrono::steady_clock::now();
             const bool drawn = vk.drawFrame(state_.read(), t, std::min(dt, 0.1f), scale);
@@ -512,10 +513,16 @@ void VulkanRenderer::run() {
                 const double period = 1000.0 / fpsTarget;
                 const double avgGpu = winGpu / winN, avgDt = winDt / winN;
                 if (autoScale_.load()) {
-                    if (avgGpu > 0.92 * period || avgDt > 1.3 * period) {
+                    // With GPU timestamps the decision uses GPU time only: a long presentation
+                    // interval with a light GPU load (compositor refresh cap, busy CPU) is not
+                    // fixed by rendering fewer pixels. Without timestamps the interval is all
+                    // there is.
+                    const bool timed = avgGpu > 0.0;
+                    const bool overloaded = timed ? avgGpu > 0.92 * period : avgDt > 1.3 * period;
+                    if (overloaded) {
                         scale = std::max(kMinScale, scale - 0.1f);
                         goodWindows = 0;
-                    } else if (avgGpu > 0.0 && avgGpu < 0.6 * period && avgDt < 1.15 * period) {
+                    } else if (timed && avgGpu < 0.6 * period) {
                         if (++goodWindows >= 4 && scale < cap) {
                             scale = std::min(cap, scale + 0.05f);
                             goodWindows = 0;
