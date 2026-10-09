@@ -36,12 +36,30 @@ jobs:
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PASSWORD"
           } > keystore.properties
+      - name: Version from the tag
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          [[ "$v" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { echo "tag must look like v1.2.3"; exit 1; }
+          code=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          echo "VERSION_NAME=$v" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
       - name: Build
-        run: ./gradlew :app:assembleRelease :app:testDebugUnitTest
+        run: ./gradlew :app:assembleRelease :app:testDebugUnitTest -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE"
+      - name: Verify the signature and version
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          test -f "$apk" || { echo "no signed APK was produced"; exit 1; }
+          bt="$ANDROID_HOME/build-tools/36.0.0"
+          "$bt/apksigner" verify --verbose --print-certs "$apk" | tee verify.txt
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" verify.txt
+          grep -q "CN=AudioVisualizer" verify.txt
+          "$bt/aapt2" dump badging "$apk" | head -1 | tee badging.txt
+          grep -q "versionCode='$VERSION_CODE' versionName='$VERSION_NAME'" badging.txt
       - name: Collect assets
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/AudioVisualizer-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/mapping/release/mapping.txt "dist/mapping-${GITHUB_REF_NAME}.txt"
           cp presets/presets.json dist/presets.json
           (cd dist && sha256sum * > SHA256SUMS.txt)
       - name: Publish
