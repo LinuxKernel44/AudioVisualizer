@@ -4,43 +4,53 @@ import android.view.Surface
 
 /** Thin JNI facade over the native engine. All real work happens in C++. */
 class NativeEngine {
-    private var handle: Long = create()
+    @Volatile private var handle: Long = create()
 
-    fun load(fd: Int): String? = load(handle, fd)
-    fun play(): Boolean = play(handle)
-    fun pause(): Boolean = pause(handle)
-    fun seekTo(ms: Long): Boolean = seekTo(handle, ms)
-    fun positionMs(): Long = positionMs(handle)
-    fun durationMs(): Long = durationMs(handle)
-    fun isPlaying(): Boolean = isPlaying(handle)
-    fun isFinished(): Boolean = isFinished(handle)
-    fun frameMs(): Float = frameMs(handle)
-    fun setSurface(surface: Surface?) = setSurface(handle, surface)
-    fun setControls(c: Controls) = setControls(handle, c.sensitivity, c.gainBass, c.gainMid, c.gainTreble,
-        c.smoothing, c.palette, c.beatFlash, c.bloom)
-    fun setTargetFps(fps: Float) = setTargetFps(handle, fps)
-    fun setThermalLevel(level: Int) = setThermalLevel(handle, level)
-    fun setAutoScale(on: Boolean) = setAutoScale(handle, on)
-    fun setPowerSaver(on: Boolean) = setPowerSaver(handle, on)
+    /** Calls [f] with the native handle, or returns [default] once the engine has been released. */
+    private inline fun <T> h(default: T, f: (Long) -> T): T {
+        val hd = handle
+        return if (hd != 0L) f(hd) else default
+    }
+
+    fun load(fd: Int): String? = h("The engine is closed") { load(it, fd) }
+    fun play(): Boolean = h(false) { play(it) }
+    fun pause(): Boolean = h(false) { pause(it) }
+    fun seekTo(ms: Long): Boolean = h(false) { seekTo(it, ms) }
+    fun positionMs(): Long = h(0L) { positionMs(it) }
+    fun durationMs(): Long = h(0L) { durationMs(it) }
+    fun isPlaying(): Boolean = h(false) { isPlaying(it) }
+    fun isFinished(): Boolean = h(false) { isFinished(it) }
+    fun frameMs(): Float = h(0f) { frameMs(it) }
+    fun setSurface(surface: Surface?) = h(Unit) { setSurface(it, surface) }
+    fun setControls(c: Controls) = h(Unit) {
+        setControls(it, c.sensitivity, c.gainBass, c.gainMid, c.gainTreble, c.smoothing, c.palette, c.beatFlash, c.bloom)
+    }
+    fun setTargetFps(fps: Float) = h(Unit) { setTargetFps(it, fps) }
+    fun setThermalLevel(level: Int) = h(Unit) { setThermalLevel(it, level) }
+    fun setAutoScale(on: Boolean) = h(Unit) { setAutoScale(it, on) }
+    fun setPowerSaver(on: Boolean) = h(Unit) { setPowerSaver(it, on) }
     /** [frameMs, gpuMs, renderScale, targetFps, audioLatencyMs] */
-    fun perf(): FloatArray = perf(handle)
-    fun setScene(index: Int) = setScene(handle, index)
-    fun sceneIndex(): Int = sceneIndex(handle)
-    fun setCacheDir(dir: String) = setCacheDir(handle, dir)
-    fun setBeatModel(path: String) = setBeatModel(handle, path)
-    fun setOverlay(l: Layer?) = setOverlay(handle, l?.rgba, l?.width ?: 0, l?.height ?: 0)
-    fun setBackground(l: Layer?) = setBackground(handle, l?.rgba, l?.width ?: 0, l?.height ?: 0)
-    fun setBrandingOpacity(overlay: Float, background: Float) = setBrandingOpacity(handle, overlay, background)
-    fun analysisState(): Int = analysisState(handle)
-    fun analysisProgress(): Float = analysisProgress(handle)
-    fun analysisFromCache(): Boolean = analysisFromCache(handle)
-    fun analysisError(): String = analysisError(handle)
-    fun summaryJson(): String = summaryJson(handle)
+    fun perf(): FloatArray = h(FloatArray(5)) { perf(it) }
+    fun setScene(index: Int) = h(Unit) { setScene(it, index) }
+    fun sceneIndex(): Int = h(-1) { sceneIndex(it) }
+    fun setCacheDir(dir: String) = h(Unit) { setCacheDir(it, dir) }
+    fun setBeatModel(path: String) = h(Unit) { setBeatModel(it, path) }
+    fun setOverlay(l: Layer?) = h(Unit) { setOverlay(it, l?.rgba, l?.width ?: 0, l?.height ?: 0) }
+    fun setBackground(l: Layer?) = h(Unit) { setBackground(it, l?.rgba, l?.width ?: 0, l?.height ?: 0) }
+    fun setBrandingOpacity(overlay: Float, background: Float) = h(Unit) { setBrandingOpacity(it, overlay, background) }
+    fun analysisState(): Int = h(0) { analysisState(it) }
+    fun analysisProgress(): Float = h(0f) { analysisProgress(it) }
+    fun analysisFromCache(): Boolean = h(false) { analysisFromCache(it) }
+    fun analysisError(): String = h("") { analysisError(it) }
+    fun summaryJson(): String = h("") { summaryJson(it) }
 
+    /** Destroys the native engine. No other call may be in flight; later calls are no-ops. */
+    @Synchronized
     fun release() {
-        if (handle != 0L) {
-            destroy(handle)
+        val hd = handle
+        if (hd != 0L) {
             handle = 0L
+            destroy(hd)
         }
     }
 

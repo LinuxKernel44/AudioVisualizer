@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -20,7 +21,10 @@ class EncoderBase {
     bool finish();
     /// Stops immediately (error / cancel path).
     void abort();
-    const std::string& error() const { return error_; }
+    std::string error() const {
+        std::lock_guard<std::mutex> lk(errorMu_);
+        return error_;
+    }
 
    protected:
     bool startCodec(AMediaFormat* fmt, const char* mime);
@@ -28,6 +32,8 @@ class EncoderBase {
     ssize_t waitInputBuffer();
     void queueEos(int64_t ptsUs);
     void drainLoop();
+    /// Records the first error (callable from the producer and the output thread).
+    void fail(const std::string& msg);
 
     AMediaCodec* codec_ = nullptr;
     MuxSink* mux_ = nullptr;
@@ -36,7 +42,8 @@ class EncoderBase {
     std::atomic<bool> stop_{false};
     std::atomic<bool> failed_{false};
     bool finished_ = false;
-    std::string error_;
+    mutable std::mutex errorMu_;
+    std::string error_;  // guarded by errorMu_
     const char* tag_ = "encoder";
 };
 

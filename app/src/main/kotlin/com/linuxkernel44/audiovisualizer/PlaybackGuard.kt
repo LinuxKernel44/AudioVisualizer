@@ -23,7 +23,8 @@ class PlaybackGuard(private val ctx: Context, private val onPause: () -> Unit) {
         }
     }
 
-    /** Returns true if focus was granted. */
+    /** Returns true if focus was granted. Callable from any thread. */
+    @Synchronized
     fun acquire(): Boolean {
         val req = request ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
@@ -38,11 +39,11 @@ class PlaybackGuard(private val ctx: Context, private val onPause: () -> Unit) {
         return audio.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
+    @Synchronized
     fun release() {
+        if (!noisyRegistered) return  // not held
         request?.let { audio.abandonAudioFocusRequest(it) }
-        if (noisyRegistered) {
-            ctx.unregisterReceiver(noisy)
-            noisyRegistered = false
-        }
+        ctx.unregisterReceiver(noisy)
+        noisyRegistered = false
     }
 }

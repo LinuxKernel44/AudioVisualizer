@@ -87,6 +87,7 @@ class VulkanRenderer {
     std::condition_variable cv_;
     ANativeWindow* pending_ = nullptr;
     bool surfaceDirty_ = false;
+    bool exited_ = false;  // the render thread has finished (or never started)
 };
 
 }  // namespace av

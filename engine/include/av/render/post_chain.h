@@ -61,6 +61,7 @@ class PostChain {
                         const float pc[4], bool clear = false,
                         VkDescriptorSet extra = VK_NULL_HANDLE);
     bool uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint32_t h);
+    bool setLayer(vk::Image* img, const uint8_t* rgba, uint32_t w, uint32_t h);
     void clearTargets();
 
     const vk::Context* ctx_ = nullptr;
@@ -78,6 +79,7 @@ class PostChain {
     static constexpr int kBloomLevels = 4;
     Target scene_[2], mix_, fb_[2], bloom_[kBloomLevels];
     int fbCur_ = 0;
+    bool feedbackLive_ = false;  // the history target holds last frame's output
     uint32_t w_ = 0, h_ = 0;
     std::map<std::pair<VkImageView, VkImageView>, VkDescriptorSet> sets_;
     vk::Image overlay_, background_;

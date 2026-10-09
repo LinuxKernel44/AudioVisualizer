@@ -14,8 +14,13 @@
 namespace av {
 
 SpectrumWorker::SpectrumWorker(SpscRing<float>& tap, TripleBuffer<VisualState>& out, int sampleRate,
-                               Playback playback, const AnalysisJob* job)
-    : tap_(tap), out_(out), sampleRate_(sampleRate), playback_(std::move(playback)), job_(job) {}
+                               WorkerControls& controls, Playback playback, const AnalysisJob* job)
+    : tap_(tap),
+      out_(out),
+      sampleRate_(sampleRate),
+      controls_(controls),
+      playback_(std::move(playback)),
+      job_(job) {}
 
 SpectrumWorker::~SpectrumWorker() { stop(); }
 
@@ -43,6 +48,7 @@ void SpectrumWorker::run() {
     bool timelineSet = false;
     int appliedManual = -2;
     uint32_t appliedSettings = ~0u;
+    uint32_t appliedFlush = controls_.flushGen.load();
 
     auto publish = [&] {
         const auto now = Clock::now();
@@ -57,13 +63,13 @@ void SpectrumWorker::run() {
                 }
             }
         }
-        const uint32_t gen = settingsGen_.load();
+        const uint32_t gen = controls_.settingsGen.load();
         if (gen != appliedSettings) {
-            std::lock_guard<std::mutex> lk(settingsMu_);
-            fe.setSettings(settings_);
+            std::lock_guard<std::mutex> lk(controls_.settingsMu);
+            fe.setSettings(controls_.settings);
             appliedSettings = gen;
         }
-        const int manual = manualScene_.load();
+        const int manual = controls_.manualScene.load();
         if (manual != appliedManual) {
             fe.setManualScene(manual);
             appliedManual = manual;
@@ -75,6 +81,11 @@ void SpectrumWorker::run() {
     };
 
     while (!stop_.load(std::memory_order_relaxed)) {
+        const uint32_t flush = controls_.flushGen.load();
+        if (flush != appliedFlush) {  // seek: what is queued belongs to the old position
+            tap_.skip(tap_.readAvailable());
+            appliedFlush = flush;
+        }
         if (tap_.readAvailable() >= hop) {
             tap_.read(chunk.data(), hop);
             fe.pushSamples(chunk.data(), hop);

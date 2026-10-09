@@ -64,9 +64,10 @@ object BrandingRenderer {
             val scale = target / maxOf(logo.width, logo.height)
             val lw = logo.width * scale
             val lh = logo.height * scale
-            val m = Matrix().apply { postScale(scale, scale); postTranslate(w - margin - lw, margin) }
-            canvas.drawBitmap(logo, m, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
-            if (lh <= 0f) return null
+            if (lh > 0f) {
+                val m = Matrix().apply { postScale(scale, scale); postTranslate(w - margin - lw, margin) }
+                canvas.drawBitmap(logo, m, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            }
             logo.recycle()
         }
 

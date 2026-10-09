@@ -215,6 +215,18 @@ bool deserialize(const uint8_t* data, size_t size, Timeline* out, std::string* e
     t.sections = r.getVec<Section>();
     t.energyCurve = r.getVec<float>();
     if (!r.ok) return fail("truncated");
+    // The file is only ever written by serialize(), but a corrupt or foreign cache entry must not
+    // turn into out-of-range reads later.
+    if (!(t.frameRate > 0) || !std::isfinite(t.frameRate) || !std::isfinite(t.durationSec))
+        return fail("bad header");
+    for (const auto& c : t.ch)
+        if (c.size() != t.numFrames) return fail("channel length mismatch");
+    if (t.beatBar.size() != t.beats.size() || !std::is_sorted(t.beats.begin(), t.beats.end()))
+        return fail("bad beat grid");
+    for (const Section& s : t.sections)
+        if (static_cast<size_t>(s.label) > static_cast<size_t>(SectionLabel::Outro))
+            return fail("bad section label");
+    if (t.beatsPerBar == 0) return fail("bad meter");
     *out = std::move(t);
     return true;
 }

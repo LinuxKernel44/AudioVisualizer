@@ -49,11 +49,19 @@ import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val vm: PlayerViewModel by viewModels()
+    private var thermalListener: android.os.PowerManager.OnThermalStatusChangedListener? = null
 
     override fun onStop() {
         super.onStop()
         // A visualizer has nothing to show in the background; exports keep running in their service.
         if (!ExportController.running) vm.pausePlayback()
+    }
+
+    override fun onDestroy() {
+        // The listener references this activity; a recreated activity registers its own.
+        thermalListener?.let { (getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager).removeThermalStatusListener(it) }
+        thermalListener = null
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -80,7 +88,9 @@ class MainActivity : ComponentActivity() {
         vm.engine.setTargetFps(display?.refreshRate ?: 60f)
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
-            pm.addThermalStatusListener(mainExecutor) { status -> vm.onThermalStatus(status) }
+            val l = android.os.PowerManager.OnThermalStatusChangedListener { status -> vm.onThermalStatus(status) }
+            pm.addThermalStatusListener(mainExecutor, l)
+            thermalListener = l
             vm.onThermalStatus(pm.currentThermalStatus)
         }
         setContent {

@@ -6,12 +6,14 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <memory>
 #include <vector>
 
 #include "av/analysis/analysis_job.h"
 #include "av/audio/decoder.h"
 #include "av/export/encoders.h"
 #include "av/export/mux_sink.h"
+#include "av/ml/resampler.h"
 #include "av/render/offscreen_renderer.h"
 #include "av/sim/front_end.h"
 
@@ -24,6 +26,12 @@ namespace {
 
 constexpr double kVisualLookaheadSec = 0.02;  // the FFT window ends ~half a window before "now"
 constexpr double kAudioLeadSec = 0.5;  // keep the AAC encoder fed this far ahead of the video
+
+/// AAC encoders on Android accept 8..48 kHz; hi-res sources are resampled to the nearest family.
+int aacRateFor(int sr) {
+    if (sr <= 48000) return sr;
+    return sr % 44100 == 0 ? 44100 : 48000;
+}
 
 /// Sliding buffer of decoded stereo PCM addressed by absolute frame index.
 class PcmWindow {
@@ -142,7 +150,8 @@ bool ExportJob::runImpl(std::string* err) {
         *err = venc.error().empty() ? "video encoder failed" : venc.error();
         return false;
     }
-    if (!aenc.create(sr, p_.audioBitrate, &mux)) {
+    const int aacRate = aacRateFor(sr);
+    if (!aenc.create(aacRate, p_.audioBitrate, &mux)) {
         *err = aenc.error().empty() ? "audio encoder failed" : aenc.error();
         return false;
     }
@@ -173,18 +182,62 @@ bool ExportJob::runImpl(std::string* err) {
             }
         }
     };
+    // Audio for the AAC encoder: the decoded PCM itself, or a resampled copy for hi-res sources.
+    std::unique_ptr<Resampler> rsL, rsR;
+    if (aacRate != sr) {
+        rsL = std::make_unique<Resampler>(sr, aacRate);
+        rsR = std::make_unique<Resampler>(sr, aacRate);
+        LOGI("resampling audio %d -> %d Hz for AAC", sr, aacRate);
+    }
+    std::vector<float> inL, inR, outL, outR;
+    int64_t aacOut = 0;  // frames handed to the encoder, at the encoder's rate
+    auto encodePlanar = [&](const float* l, const float* r, size_t n) -> bool {
+        pcm16.resize(n * 2);
+        for (size_t i = 0; i < n; ++i) {
+            pcm16[2 * i] = static_cast<int16_t>(std::lrintf(std::clamp(l[i], -1.f, 1.f) * 32767.f));
+            pcm16[2 * i + 1] =
+                static_cast<int16_t>(std::lrintf(std::clamp(r[i], -1.f, 1.f) * 32767.f));
+        }
+        if (n > 0 && !aenc.queuePcm(pcm16.data(), n, aacOut)) return false;
+        aacOut += static_cast<int64_t>(n);
+        return true;
+    };
     auto feedAac = [&](int64_t upTo) -> bool {
         upTo = std::min(upTo, pcm.endFrame());
         while (aacPos < upTo) {
             const size_t n = static_cast<size_t>(std::min<int64_t>(upTo - aacPos, 4096));
             const float* s = pcm.at(aacPos);
-            pcm16.resize(n * 2);
-            for (size_t i = 0; i < n * 2; ++i)
-                pcm16[i] = static_cast<int16_t>(std::lrintf(std::clamp(s[i], -1.f, 1.f) * 32767.f));
-            if (!aenc.queuePcm(pcm16.data(), n, aacPos)) return false;
+            if (!rsL) {
+                pcm16.resize(n * 2);
+                for (size_t i = 0; i < n * 2; ++i)
+                    pcm16[i] =
+                        static_cast<int16_t>(std::lrintf(std::clamp(s[i], -1.f, 1.f) * 32767.f));
+                if (!aenc.queuePcm(pcm16.data(), n, aacPos)) return false;
+            } else {
+                inL.resize(n);
+                inR.resize(n);
+                for (size_t i = 0; i < n; ++i) {
+                    inL[i] = s[2 * i];
+                    inR[i] = s[2 * i + 1];
+                }
+                outL.clear();
+                outR.clear();
+                rsL->process(inL.data(), n, &outL);
+                rsR->process(inR.data(), n, &outR);
+                if (!encodePlanar(outL.data(), outR.data(), std::min(outL.size(), outR.size())))
+                    return false;
+            }
             aacPos += static_cast<int64_t>(n);
         }
         return true;
+    };
+    auto flushAac = [&]() -> bool {
+        if (!rsL) return true;
+        outL.clear();
+        outR.clear();
+        rsL->finish(&outL);
+        rsR->finish(&outR);
+        return encodePlanar(outL.data(), outR.data(), std::min(outL.size(), outR.size()));
     };
 
     const auto t0 = std::chrono::steady_clock::now();
@@ -239,7 +292,7 @@ bool ExportJob::runImpl(std::string* err) {
     setPhase("Finalizing");
     // Remaining audio (the loop stops when the video ends; the audio may be slightly longer).
     decodeUntil(static_cast<int64_t>(duration * sr));
-    if (!feedAac(static_cast<int64_t>(duration * sr))) {
+    if (!feedAac(static_cast<int64_t>(duration * sr)) || !flushAac()) {
         *err = aenc.error().empty() ? "audio encoder stalled" : aenc.error();
         return false;
     }

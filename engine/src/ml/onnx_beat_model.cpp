@@ -51,6 +51,12 @@ bool OnnxBeatModel::run(const float* spect, size_t frames, float* beat, float* d
         const char* outNames[] = {"beat", "downbeat"};
         auto out = impl_->session->Run(Ort::RunOptions{nullptr}, inNames, &in, 1, outNames, 2);
         if (out.size() != 2) return false;
+        for (const Ort::Value& v : out) {
+            if (v.GetTensorTypeAndShapeInfo().GetElementCount() < frames) {
+                error_ = "unexpected output shape";
+                return false;
+            }
+        }
         const float* b = out[0].GetTensorData<float>();
         const float* d = out[1].GetTensorData<float>();
         std::copy(b, b + frames, beat);

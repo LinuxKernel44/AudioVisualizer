@@ -13,7 +13,7 @@ object ExportController {
     var renderFps by mutableStateOf(0f)
     var resultUri by mutableStateOf<Uri?>(null)
     var error by mutableStateOf<String?>(null)
-    var cancelRequested = false
+    @Volatile var cancelRequested = false
 
     fun reset() {
         running = true

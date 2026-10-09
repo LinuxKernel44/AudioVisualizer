@@ -42,11 +42,13 @@ bool loadWav(const std::string& path, std::vector<float>* out, double* sampleRat
     for (size_t p = 12; p + 8 <= buf.size();) {
         const uint32_t len = u32(p + 4);
         if (std::memcmp(&buf[p], "fmt ", 4) == 0) {
+            if (len < 16 || p + 8 + 16 > buf.size()) return fail("truncated fmt chunk");
             fmt = u16(p + 8);
             ch = u16(p + 10);
             sr = u32(p + 12);
             bits = u16(p + 22);
-            if (fmt == 0xFFFE && len >= 26) fmt = u16(p + 8 + 24);  // WAVE_FORMAT_EXTENSIBLE
+            if (fmt == 0xFFFE && len >= 26 && p + 8 + 26 <= buf.size())
+                fmt = u16(p + 8 + 24);  // WAVE_FORMAT_EXTENSIBLE
         } else if (std::memcmp(&buf[p], "data", 4) == 0) {
             dataOff = p + 8;
             dataLen = std::min<size_t>(len, buf.size() - dataOff);
@@ -55,6 +57,8 @@ bool loadWav(const std::string& path, std::vector<float>* out, double* sampleRat
         p += 8 + len + (len & 1);
     }
     if (!dataOff || ch == 0 || (fmt != 1 && fmt != 3)) return fail("unsupported WAV format");
+    if (bits != 8 && bits != 16 && bits != 24 && bits != 32) return fail("unsupported bit depth");
+    if (fmt == 3 && bits != 32) return fail("unsupported float format");
     const size_t bytes = bits / 8;
     const size_t frames = dataLen / (bytes * ch);
     out->resize(frames * 2);
