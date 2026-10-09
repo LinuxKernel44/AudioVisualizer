@@ -146,6 +146,7 @@ void LogMel::push(const float* x, size_t n, std::vector<float>* out) {
 void LogMel::finish(std::vector<float>* out) {
     if (finished_) return;
     finished_ = true;
+    if (total_ == 0) return;  // nothing to reflect: no frames (and no samples to read)
     const size_t frames = frameCount(static_cast<size_t>(total_));
     float window[kFft];
     while (next_ < frames) {

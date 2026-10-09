@@ -1,6 +1,7 @@
 #include "av/audio/decoder.h"
 
 #include <android/log.h>
+#include <fcntl.h>
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaFormat.h>
@@ -9,7 +10,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
+#include <initializer_list>
+#include <utility>
 #include <vector>
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "av.decoder", __VA_ARGS__)
@@ -22,6 +26,81 @@ constexpr int kPcmFloat = 4;
 constexpr int kPcm8 = 3;
 constexpr int kMaxBatchFrames = 31;       // extra compressed frames packed after the first
 constexpr size_t kMaxBatchBytes = 12288;  // and an upper bound on the packed size
+
+// Stereo downmix matrices for Android's default channel orders (ITU-R BS.775 coefficients,
+// normalised per side so a full-scale signal on every channel cannot clip).
+constexpr size_t kMaxDownmixChannels = 8;
+struct Downmix {
+    float l[kMaxDownmixChannels] = {};
+    float r[kMaxDownmixChannels] = {};
+};
+/// Opens the file behind `fd` again, with its own file offset. The platform extractor reads with
+/// lseek()+read() on a dup of the descriptor it is given, and all dups share one offset: two
+/// decoders of the same file (playback, analysis, beat model) would corrupt each other's reads.
+int reopenIndependently(int fd) {
+    char path[48];
+    std::snprintf(path, sizeof path, "/proc/self/fd/%d", fd);
+    const int own = ::open(path, O_RDONLY | O_CLOEXEC);
+    if (own >= 0) return own;
+    return fcntl(fd, F_DUPFD_CLOEXEC, 0);  // not reopenable (unusual providers): best effort
+}
+
+Downmix downmixFor(int channels) {
+    constexpr float k = 0.7071f;
+    Downmix d;
+    // Per channel: weight into L, weight into R (FL FR FC LFE BL BR SL SR, depending on count).
+    auto set = [&](std::initializer_list<std::pair<float, float>> w) {
+        size_t i = 0;
+        for (const auto& p : w) {
+            d.l[i] = p.first;
+            d.r[i] = p.second;
+            ++i;
+        }
+    };
+    switch (channels) {
+        case 1:
+            set({{1.f, 1.f}});
+            return d;
+        case 2:
+            set({{1.f, 0.f}, {0.f, 1.f}});
+            return d;
+        case 3:
+            set({{1.f, 0.f}, {0.f, 1.f}, {k, k}});
+            break;  // FL FR FC
+        case 4:
+            set({{1.f, 0.f}, {0.f, 1.f}, {k, 0.f}, {0.f, k}});
+            break;  // quad
+        case 5:
+            set({{1.f, 0.f}, {0.f, 1.f}, {k, k}, {k, 0.f}, {0.f, k}});
+            break;  // 5.0
+        case 6:
+            set({{1.f, 0.f}, {0.f, 1.f}, {k, k}, {0.f, 0.f}, {k, 0.f}, {0.f, k}});
+            break;  // 5.1
+        case 7:     // 6.1: FL FR FC LFE BC SL SR
+            set({{1.f, 0.f}, {0.f, 1.f}, {k, k}, {0.f, 0.f}, {0.5f, 0.5f}, {k, 0.f}, {0.f, k}});
+            break;
+        default:  // 7.1 (FL FR FC LFE BL BR SL SR); anything larger keeps its first eight
+            set({{1.f, 0.f},
+                 {0.f, 1.f},
+                 {k, k},
+                 {0.f, 0.f},
+                 {k, 0.f},
+                 {0.f, k},
+                 {k, 0.f},
+                 {0.f, k}});
+            break;
+    }
+    float sl = 0.f, sr = 0.f;
+    for (size_t i = 0; i < kMaxDownmixChannels; ++i) {
+        sl += d.l[i];
+        sr += d.r[i];
+    }
+    for (size_t i = 0; i < kMaxDownmixChannels; ++i) {
+        d.l[i] /= sl;
+        d.r[i] /= sr;
+    }
+    return d;
+}
 }  // namespace
 
 Decoder::Decoder() : ring_(1 << 18) {}  // 262144 floats = 131072 stereo frames (~2.7 s @ 48k)
@@ -34,8 +113,8 @@ bool Decoder::open(int fd, std::string* error) {
         close();
         return false;
     };
-    fd_ = dup(fd);
-    if (fd_ < 0) return fail("dup failed");
+    fd_ = reopenIndependently(fd);
+    if (fd_ < 0) return fail("Cannot open the audio file");
     struct stat st{};
     if (fstat(fd_, &st) != 0) return fail("fstat failed");
 
@@ -96,7 +175,11 @@ bool Decoder::open(int fd, std::string* error) {
 }
 
 void Decoder::close() {
-    stop_.store(true);
+    {
+        std::lock_guard<std::mutex> lk(mu_);  // wakes a thread parked by a seek
+        stop_.store(true);
+    }
+    cv_.notify_all();
     if (thread_.joinable()) thread_.join();
     if (codec_) {
         AMediaCodec_stop(codec_);
@@ -179,27 +262,56 @@ void Decoder::run() {
             }
             stereo.resize(frames * 2);
             const size_t stride = static_cast<size_t>(ch);
-            if (pcmEncoding_ == kPcmFloat) {
-                const float* p = reinterpret_cast<const float*>(data);  // codec buffers are aligned
-                for (size_t f = skipFrames; f < frames; ++f) {
-                    const float l = p[f * stride];
-                    stereo[2 * f] = l;
-                    stereo[2 * f + 1] = ch > 1 ? p[f * stride + 1] : l;
+            auto sample = [&](size_t f, size_t c) -> float {
+                const size_t i = f * stride + c;
+                if (pcmEncoding_ == kPcmFloat) {
+                    float v;
+                    std::memcpy(&v, data + i * 4, 4);
+                    return v;
                 }
-            } else if (pcmEncoding_ == kPcm8) {
-                for (size_t f = skipFrames; f < frames; ++f) {
-                    const float l = (static_cast<int>(data[f * stride]) - 128) / 128.f;
-                    stereo[2 * f] = l;
-                    stereo[2 * f + 1] =
-                        ch > 1 ? (static_cast<int>(data[f * stride + 1]) - 128) / 128.f : l;
+                if (pcmEncoding_ == kPcm8) return (static_cast<int>(data[i]) - 128) / 128.f;
+                int16_t v;
+                std::memcpy(&v, data + i * 2, 2);
+                return static_cast<float>(v) * (1.f / 32768.f);
+            };
+            if (ch <= 2) {  // fast paths: mono / stereo
+                if (pcmEncoding_ == kPcmFloat) {
+                    const float* p =
+                        reinterpret_cast<const float*>(data);  // codec buffers are aligned
+                    for (size_t f = skipFrames; f < frames; ++f) {
+                        const float l = p[f * stride];
+                        stereo[2 * f] = l;
+                        stereo[2 * f + 1] = ch > 1 ? p[f * stride + 1] : l;
+                    }
+                } else if (pcmEncoding_ == kPcm8) {
+                    for (size_t f = skipFrames; f < frames; ++f) {
+                        const float l = (static_cast<int>(data[f * stride]) - 128) / 128.f;
+                        stereo[2 * f] = l;
+                        stereo[2 * f + 1] =
+                            ch > 1 ? (static_cast<int>(data[f * stride + 1]) - 128) / 128.f : l;
+                    }
+                } else {
+                    const int16_t* p = reinterpret_cast<const int16_t*>(data);
+                    constexpr float k = 1.f / 32768.f;
+                    for (size_t f = skipFrames; f < frames; ++f) {
+                        const float l = static_cast<float>(p[f * stride]) * k;
+                        stereo[2 * f] = l;
+                        stereo[2 * f + 1] = ch > 1 ? static_cast<float>(p[f * stride + 1]) * k : l;
+                    }
                 }
-            } else {
-                const int16_t* p = reinterpret_cast<const int16_t*>(data);
-                constexpr float k = 1.f / 32768.f;
+            } else {  // surround: fold every channel into stereo (a plain L/R pick loses the
+                      // centre)
+                const Downmix dm = downmixFor(ch);
+                const size_t used = std::min(stride, kMaxDownmixChannels);
                 for (size_t f = skipFrames; f < frames; ++f) {
-                    const float l = static_cast<float>(p[f * stride]) * k;
+                    float l = 0.f, r = 0.f;
+                    for (size_t c = 0; c < used; ++c) {
+                        const float v = sample(f, c);
+                        l += dm.l[c] * v;
+                        r += dm.r[c] * v;
+                    }
                     stereo[2 * f] = l;
-                    stereo[2 * f + 1] = ch > 1 ? static_cast<float>(p[f * stride + 1]) * k : l;
+                    stereo[2 * f + 1] = r;
                 }
             }
             size_t done = skipFrames * 2;

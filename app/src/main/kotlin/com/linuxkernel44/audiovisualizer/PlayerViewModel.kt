@@ -8,12 +8,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 val SCENE_NAMES = listOf("Bars", "Radial", "Tunnel", "Fractal", "Particles")
 
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val engine = NativeEngine()
+    /** Serialises every engine transport call (load, play, pause, seek), which may block. */
     private val worker = Executors.newSingleThreadExecutor()
+    /** Draws branding layers, so a slow bitmap never delays playback. */
+    private val brandingWorker = Executors.newSingleThreadExecutor()
+
+    private fun onWorker(block: () -> Unit) {
+        try {
+            worker.execute(block)
+        } catch (_: RejectedExecutionException) {  // the view model is being cleared
+        }
+    }
 
     var trackName by mutableStateOf<String?>(null)
         private set
@@ -60,6 +73,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var surfaceW = 0
     private var surfaceH = 0
     private var titleAutoFilled = true
+    private val brandingGen = AtomicInteger()
+    private var uploadedLayers: Any? = null  // what the renderer currently shows; brandingWorker only
 
     fun updateBranding(b: Branding) {
         // Manual edits stop automatic title/artist filling for the current track.
@@ -76,19 +91,31 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         applyBranding()
     }
 
-    /** Rebuilds the branding layers at about half the surface size and hands them to the renderer. */
+    /**
+     * Rebuilds the branding layers at about half the surface size and hands them to the renderer.
+     * Requests are coalesced (typing a title or dragging a slider sends many), and a change that
+     * only affects opacity does not redraw the bitmaps.
+     */
     private fun applyBranding() {
         val b = branding
         val w = surfaceW / 2 * 2
         val h = surfaceH / 2 * 2
         if (w < 16 || h < 16) return
         engine.setBrandingOpacity(b.overlayOpacity, if (b.hasBackground) b.backgroundOpacity else 0f)
-        worker.execute {
-            val ctx = getApplication<Application>()
-            val sw = (w / 2).coerceAtLeast(16)
-            val sh = (h / 2).coerceAtLeast(16)
-            engine.setOverlay(BrandingRenderer.overlay(ctx, b, sw, sh))
-            engine.setBackground(BrandingRenderer.background(ctx, b, sw, sh))
+        val gen = brandingGen.incrementAndGet()
+        try {
+            brandingWorker.execute {
+                if (gen != brandingGen.get()) return@execute  // superseded by a newer request
+                val sw = (w / 2).coerceAtLeast(16)
+                val sh = (h / 2).coerceAtLeast(16)
+                val key = Triple(b.copy(overlayOpacity = 0f, backgroundOpacity = 0f), sw, sh)
+                if (key == uploadedLayers) return@execute
+                val ctx = getApplication<Application>()
+                engine.setOverlay(BrandingRenderer.overlay(ctx, b, sw, sh))
+                engine.setBackground(BrandingRenderer.background(ctx, b, sw, sh))
+                uploadedLayers = key
+            }
+        } catch (_: RejectedExecutionException) {
         }
     }
 
@@ -150,11 +177,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private fun cacheDir() = java.io.File(getApplication<Application>().cacheDir, "analysis")
 
     fun refreshCache() {
-        worker.execute { cacheBytes = cacheDir().listFiles()?.sumOf { it.length() } ?: 0L }
+        onWorker { cacheBytes = cacheDir().listFiles()?.sumOf { it.length() } ?: 0L }
     }
 
     fun clearCache() {
-        worker.execute {
+        onWorker {
             cacheDir().listFiles()?.forEach { it.delete() }
             cacheBytes = 0L
         }
@@ -179,7 +206,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun exportPresetsJson(): String = presetStore.exportUserJson()
 
     fun importPresets(ctx: android.content.Context, uri: Uri) {
-        worker.execute {
+        onWorker {
             updateStatus = try {
                 val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(512 * 1024) } ?: throw IllegalStateException("Cannot read the file")
                 "Imported ${presetStore.import(text)} preset(s)."
@@ -204,7 +231,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (updating) return
         updating = true
         updateStatus = "Checking…"
-        worker.execute {
+        onWorker {
             updateStatus = when (val r = PresetUpdater.update(presetStore, tokenStore.load())) {
                 is PresetUpdater.Result.Updated -> "Updated: ${r.count} preset(s)."
                 is PresetUpdater.Result.Failed -> r.message
@@ -250,7 +277,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         engine.setControls(controls)
         engine.setPowerSaver(batterySaver)
         engine.setAutoScale(autoResolution)
-        engine.setBeatModel(BeatModel.path(app))
+        onWorker { engine.setBeatModel(BeatModel.path(app)) }  // first launch copies the model: not on the UI thread
         engine.setBrandingOpacity(branding.overlayOpacity, if (branding.hasBackground) branding.backgroundOpacity else 0f)
         val dir = java.io.File(app.cacheDir, "analysis").apply { mkdirs() }
         engine.setCacheDir(dir.absolutePath)
@@ -263,8 +290,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun startExport(ctx: android.content.Context, cfg: ExportConfig) {
         val uri = currentUri ?: return
         showExport = false
-        engine.pause()
-        refresh()
+        pausePlayback()
         ExportService.start(ctx, uri, trackName ?: "track", cfg, controls, scene)
     }
 
@@ -279,7 +305,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         summary = null
         analysisError = null
-        worker.execute {
+        analysisRunning = false
+        onWorker {
             val resolver = getApplication<Application>().contentResolver
             val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
@@ -293,17 +320,23 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 pfd.use { engine.load(it.fd) }  // native side duplicates the fd
             }
-            loading = false
             if (err == null) {
                 trackName = name ?: "Audio"
                 recents = recentStore.add(RecentTrack(uri.toString(), trackName ?: "Audio"))
-                fillTitleFromMetadata(uri)
                 durationMs = engine.durationMs()
                 positionMs = 0
-                startPlayback()
-                playing = engine.isPlaying()
+                startPlaybackNow()
+                loading = false
+                fillTitleFromMetadata(uri)
             } else {
+                // The previous track was unloaded: nothing is playable any more.
+                trackName = null
+                currentUri = null
+                durationMs = 0
+                positionMs = 0
+                playing = false
                 error = err
+                loading = false
             }
         }
     }
@@ -311,7 +344,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun seekTo(ms: Long) {
         if (trackName == null) return
         positionMs = ms
-        worker.execute {  // seeking blocks briefly on the decoder; keep it off the UI thread
+        onWorker {  // seeking blocks briefly on the decoder; keep it off the UI thread
             engine.seekTo(ms)
             refresh()
         }
@@ -322,26 +355,32 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** Pauses playback (focus loss, headphones unplugged, app in the background). */
     fun pausePlayback() {
         if (trackName == null) return
-        engine.pause()
-        guard.release()
-        refresh()
+        onWorker {
+            engine.pause()
+            guard.release()
+            refresh()
+        }
     }
 
-    private fun startPlayback() {
+    /** Worker thread only. */
+    private fun startPlaybackNow() {
         if (guard.acquire()) engine.play()
         refresh()
     }
 
     fun togglePlay() {
         if (trackName == null) return
-        if (engine.isPlaying()) pausePlayback() else startPlayback()
+        if (playing) pausePlayback() else onWorker { startPlaybackNow() }
     }
 
-    /** Polled from the UI at a low rate; cheap JNI getters only. */
+    /** Polled from the UI at a low rate; cheap, non-blocking JNI getters only. */
     fun refresh() {
+        val wasPlaying = playing
         playing = engine.isPlaying()
         positionMs = engine.positionMs()
-        if (trackName == null) return
+        if (wasPlaying && !playing && engine.isFinished()) guard.release()  // reached the end
+        // While a file is being opened the engine still reports the previous track's analysis.
+        if (trackName == null || loading) return
         when (engine.analysisState()) {
             1 -> {
                 analysisRunning = true
@@ -361,7 +400,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         guard.release()
-        worker.shutdownNow()
-        engine.release()
+        brandingWorker.shutdownNow()
+        try {
+            brandingWorker.awaitTermination(2, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+        }
+        // Released after any transport call still queued or running (they hold the native engine).
+        onWorker { engine.release() }
+        worker.shutdown()
     }
 }

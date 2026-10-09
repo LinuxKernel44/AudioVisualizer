@@ -27,8 +27,6 @@
 
 namespace av {
 
-namespace {}  // namespace
-
 struct VulkanRenderer::Vk {
     vk::Context ctx;
     bool deviceReady = false;
@@ -330,6 +328,10 @@ VulkanRenderer::~VulkanRenderer() { stop(); }
 
 void VulkanRenderer::start() {
     stop_ = false;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        exited_ = false;
+    }
     thread_ = std::thread([this] { run(); });
 }
 
@@ -355,13 +357,15 @@ void VulkanRenderer::setBackgroundImage(std::vector<uint8_t> rgba, uint32_t w, u
 }
 
 void VulkanRenderer::setSurface(ANativeWindow* window) {
-    if (window) ANativeWindow_acquire(window);
     std::unique_lock<std::mutex> lk(mu_);
+    // Without a render thread (Vulkan unavailable, or stopped) nobody would ever take the window.
+    if (exited_ || stop_.load()) return;
+    if (window) ANativeWindow_acquire(window);
     if (pending_ && surfaceDirty_) ANativeWindow_release(pending_);  // superseded, never applied
     pending_ = window;
     surfaceDirty_ = true;
     cv_.notify_all();
-    cv_.wait(lk, [this] { return !surfaceDirty_ || stop_.load(); });
+    cv_.wait(lk, [this] { return !surfaceDirty_ || stop_.load() || exited_; });
 }
 
 void VulkanRenderer::run() {
@@ -384,6 +388,7 @@ void VulkanRenderer::run() {
     APerformanceHintManager* hintMgr = nullptr;
     APerformanceHintSession* hint = nullptr;
     float hintFps = 0.f;
+    bool hintFailed = false;  // ADPF unsupported here: do not retry every frame
     bool appliedSaver = false;
 
     while (instanceOk) {
@@ -405,6 +410,7 @@ void VulkanRenderer::run() {
             vk.destroySurface();
             if (current) ANativeWindow_release(current);
             current = incoming;
+            appliedSaver = false;  // a new window starts at the default frame rate
             if (current && vk.createSurface(current)) {
                 if (!vk.deviceReady)
                     vk.deviceReady = vk.ctx.createDevice(vk.surface) && vk.createDeviceResources();
@@ -444,13 +450,17 @@ void VulkanRenderer::run() {
             const float cap = std::min({userMax, thermalCap, saver ? 0.7f : 1.f});
             if (scale > cap) scale = std::max(kMinScale, cap);
             if (__builtin_available(android 33, *)) {
-                if (!hint && !hintMgr) hintMgr = APerformanceHint_getManager();
-                if (hintMgr && (!hint || std::fabs(hintFps - fpsTarget) > 1.f)) {
+                if (!hintMgr && !hintFailed) {
+                    hintMgr = APerformanceHint_getManager();
+                    hintFailed = hintMgr == nullptr;
+                }
+                if (hintMgr && !hintFailed && (!hint || std::fabs(hintFps - fpsTarget) > 1.f)) {
                     if (hint) APerformanceHint_closeSession(hint);
                     const int32_t tid = gettid();
                     hint = APerformanceHint_createSession(hintMgr, &tid, 1,
                                                           static_cast<int64_t>(0.9e9 / fpsTarget));
                     hintFps = fpsTarget;
+                    hintFailed = hint == nullptr;
                 }
             }
             if (layersDirty_.exchange(false)) {
@@ -537,6 +547,7 @@ void VulkanRenderer::run() {
         if (pending_) ANativeWindow_release(pending_);
         pending_ = nullptr;
         surfaceDirty_ = false;
+        exited_ = true;
     }
     cv_.notify_all();
 }

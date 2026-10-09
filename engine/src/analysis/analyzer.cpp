@@ -257,12 +257,12 @@ bool analyzeAudio(PcmSource& src, const AnalyzerOptions& opts, Timeline* out, st
         const float lo = s[static_cast<size_t>(0.10 * static_cast<double>(s.size() - 1))];
         const float hi = s[static_cast<size_t>(0.95 * static_cast<double>(s.size() - 1))];
         for (size_t i = 0; i < secs; ++i) {
-            const size_t a = static_cast<size_t>(static_cast<double>(i) * t.frameRate);
             const size_t b = std::min(
                 lufs.size(), static_cast<size_t>(static_cast<double>(i + 1) * t.frameRate));
+            const size_t a = std::min(b, static_cast<size_t>(static_cast<double>(i) * t.frameRate));
             double m = 0;
             for (size_t k = a; k < b; ++k) m += lufs[k];
-            m /= static_cast<double>(std::max<size_t>(b - a, 1));
+            m = b > a ? m / static_cast<double>(b - a) : lufs.back();
             t.energyCurve[i] =
                 hi > lo ? std::clamp(static_cast<float>((m - lo) / (hi - lo)), 0.f, 1.f) : 0.5f;
         }

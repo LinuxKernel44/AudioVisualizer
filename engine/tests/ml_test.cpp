@@ -56,6 +56,13 @@ TEST(LogMel, FrameCountAndShortInput) {
     for (float v : out) EXPECT_TRUE(std::isfinite(v));
 }
 
+TEST(LogMel, EmptyInputProducesNoFrames) {
+    av::LogMel lm;
+    std::vector<float> out;
+    lm.finish(&out);  // used to read from an empty buffer
+    EXPECT_TRUE(out.empty());
+}
+
 // ---- Resampler --------------------------------------------------------------------------------
 
 namespace {

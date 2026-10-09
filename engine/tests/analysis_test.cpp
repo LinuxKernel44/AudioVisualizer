@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <fstream>
 #include <vector>
 
 #include "av/analysis/analyzer.h"
@@ -225,6 +228,63 @@ TEST(Timeline, SerializationRoundTrip) {
     std::vector<uint8_t> bad(bytes);
     bad[0] = 'X';
     EXPECT_FALSE(av::deserialize(bad.data(), bad.size(), &r, &err));
+}
+
+TEST(Timeline, DeserializeRejectsInconsistentData) {
+    av::Timeline t;
+    t.sampleRate = 44100;
+    t.hop = 441;
+    t.frameRate = 100;
+    t.numFrames = 3;
+    t.durationSec = 0.03;
+    for (auto& c : t.ch) c = {0.f, 0.5f, 1.f};
+    t.sections.push_back({0.f, 0.03f, av::SectionLabel::Chorus, 0.5f, 0.f, 0});
+    av::Timeline r;
+    std::string err;
+    auto bytes = av::serialize(t);
+    ASSERT_TRUE(av::deserialize(bytes.data(), bytes.size(), &r, &err)) << err;
+
+    // The file ends with the sections (24 bytes each) and the (empty) energy curve's count; the
+    // label is the ninth byte of a section.
+    std::vector<uint8_t> badLabel = bytes;
+    badLabel[badLabel.size() - 8 - sizeof(av::Section) + 8] = 42;
+    EXPECT_FALSE(av::deserialize(badLabel.data(), badLabel.size(), &r, &err));
+
+    av::Timeline badLength = t;
+    badLength.ch[0].push_back(0.f);
+    bytes = av::serialize(badLength);
+    EXPECT_FALSE(av::deserialize(bytes.data(), bytes.size(), &r, &err));
+
+    av::Timeline badBeats = t;
+    badBeats.beats = {0.01f, 0.02f};  // no bar positions
+    bytes = av::serialize(badBeats);
+    EXPECT_FALSE(av::deserialize(bytes.data(), bytes.size(), &r, &err));
+}
+
+TEST(Wav, RejectsMalformedHeaders) {
+    // A RIFF/WAVE file whose fmt chunk declares 0 bits per sample must not divide by zero.
+    std::vector<uint8_t> f(44 + 8, 0);
+    auto put32 = [&](size_t o, uint32_t v) { std::memcpy(&f[o], &v, 4); };
+    auto put16 = [&](size_t o, uint16_t v) { std::memcpy(&f[o], &v, 2); };
+    std::memcpy(&f[0], "RIFF", 4);
+    put32(4, static_cast<uint32_t>(f.size() - 8));
+    std::memcpy(&f[8], "WAVEfmt ", 8);
+    put32(16, 16);
+    put16(20, 1);  // PCM
+    put16(22, 2);  // channels
+    put32(24, 44100);
+    put16(34, 0);  // bits per sample
+    std::memcpy(&f[36], "data", 4);
+    put32(40, 8);
+    const std::string path = ::testing::TempDir() + "/bad_bits.wav";
+    std::ofstream(path, std::ios::binary)
+        .write(reinterpret_cast<const char*>(f.data()), static_cast<std::streamsize>(f.size()));
+    std::vector<float> pcm;
+    double sr = 0;
+    std::string err;
+    EXPECT_FALSE(av::loadWav(path, &pcm, &sr, &err));
+    EXPECT_EQ(err, "unsupported bit depth");
+    std::remove(path.c_str());
 }
 
 TEST(Timeline, BeatPositionLookup) {

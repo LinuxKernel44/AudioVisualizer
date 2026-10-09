@@ -118,6 +118,119 @@ class PipelineTest {
         }
     }
 
+    @Test fun playStartsAgainAfterTheEnd() {
+        val engine = NativeEngine()
+        try {
+            engine.setCacheDir(cache.absolutePath)
+            engine.setBeatModel("")
+            openWav().use { assertEquals(null, engine.load(it.fd)) }
+            assertTrue(engine.seekTo(engine.durationMs() - 300))
+            assertTrue(engine.play())
+            waitFor(10_000, "end of track") { engine.isFinished() }
+            assertTrue("play after the end", engine.play())
+            Thread.sleep(300)
+            assertTrue("playing again", engine.isPlaying())
+            assertTrue("restarted from the beginning: ${engine.positionMs()} ms", engine.positionMs() < 2_000)
+            engine.pause()
+        } finally {
+            engine.release()
+        }
+    }
+
+    @Test fun gettersAndControlsAreSafeWhileLoading() {
+        val engine = NativeEngine()
+        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+        val poller = Thread {
+            var i = 0
+            while (!stop.get()) {  // what the UI does every 250 ms, here as fast as possible
+                engine.positionMs(); engine.isPlaying(); engine.isFinished(); engine.durationMs()
+                engine.analysisState(); engine.summaryJson(); engine.perf()
+                engine.setScene(i++ % 6 - 1)
+                engine.setControls(Controls(sensitivity = 1f + (i % 3)))
+            }
+        }
+        try {
+            engine.setCacheDir(cache.absolutePath)
+            engine.setBeatModel("")
+            poller.start()
+            repeat(6) {
+                openWav().use { assertEquals(null, engine.load(it.fd)) }
+                engine.play()
+                Thread.sleep(150)
+                engine.seekTo(2_000)
+            }
+            engine.pause()
+        } finally {
+            stop.set(true)
+            poller.join()
+            engine.release()
+        }
+    }
+
+    @Test fun surroundCentreChannelIsHeard() {
+        // 6-channel WAV (FL FR FC LFE BL BR) with a tone on the centre channel only.
+        val sr = 48_000
+        val frames = sr * 3
+        val data = java.nio.ByteBuffer.allocate(44 + frames * 6 * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        data.put("RIFF".toByteArray()).putInt(36 + frames * 12).put("WAVEfmt ".toByteArray())
+        data.putInt(16).putShort(1).putShort(6).putInt(sr).putInt(sr * 12).putShort(12).putShort(16)
+        data.put("data".toByteArray()).putInt(frames * 12)
+        for (f in 0 until frames) {
+            val v = (Math.sin(2 * Math.PI * 440.0 * f / sr) * 16_000).toInt().toShort()
+            for (c in 0 until 6) data.putShort(if (c == 2) v else 0)
+        }
+        val f = File(ctx.cacheDir, "centre.wav").apply { writeBytes(data.array()) }
+        val engine = NativeEngine()
+        try {
+            engine.setCacheDir(cache.absolutePath)
+            engine.setBeatModel("")
+            val err = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY).use { engine.load(it.fd) }
+            assertEquals(null, err)
+            waitFor(60_000, "analysis") { engine.analysisState() >= 2 }
+            val s = AnalysisSummary.parse(engine.summaryJson())
+            assertNotNull(s)
+            assertTrue("centre-only audio must not decode to silence (${s!!.lufs} LUFS)", s.lufs > -40f)
+        } finally {
+            engine.release()
+            f.delete()
+        }
+    }
+
+    @Test fun exportResamplesHiResAudio() {
+        val src = File(ctx.cacheDir, "hires.flac")
+        inst.context.assets.open("formats/hires96k24.flac").use { i -> src.outputStream().use { i.copyTo(it) } }
+        val out = File(ctx.cacheDir, "hires-test.mp4").apply { delete() }
+        try {
+            ParcelFileDescriptor.open(out, ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE).use { raf ->
+                ParcelFileDescriptor.open(src, ParcelFileDescriptor.MODE_READ_ONLY).use { audio ->
+                    val h = NativeExport.start(
+                        audio.fd, raf.fd, 320, 180, 30, 1_000_000, 128_000, 0, 1f,
+                        1f, 0f, 0f, 0f, 0.3f, -1, 1f, 1f, cache.absolutePath, "",
+                        null, 0, 0, null, 0, 0, 1f, 0f,
+                    )
+                    try {
+                        waitFor(120_000, "export") { NativeExport.state(h) != 0 }
+                        assertEquals("export state (error: ${NativeExport.error(h)})", 1, NativeExport.state(h))
+                    } finally {
+                        NativeExport.release(h)
+                    }
+                }
+            }
+            val ex = android.media.MediaExtractor()
+            try {
+                ex.setDataSource(out.absolutePath)
+                val audio = (0 until ex.trackCount).map { ex.getTrackFormat(it) }
+                    .first { it.getString(android.media.MediaFormat.KEY_MIME)!!.startsWith("audio/") }
+                assertEquals(48_000, audio.getInteger(android.media.MediaFormat.KEY_SAMPLE_RATE))
+            } finally {
+                ex.release()
+            }
+        } finally {
+            src.delete()
+            out.delete()
+        }
+    }
+
     @Test fun exportCanBeCancelled() {
         val out = File(ctx.cacheDir, "cancel-test.mp4").apply { delete() }
         ParcelFileDescriptor.open(out, ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE).use { raf ->

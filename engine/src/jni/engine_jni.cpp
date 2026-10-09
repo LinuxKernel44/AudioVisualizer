@@ -8,6 +8,16 @@
 
 namespace {
 av::Engine* from(jlong h) { return reinterpret_cast<av::Engine*>(h); }
+
+/// Copies a Java string (null becomes empty).
+std::string str(JNIEnv* env, jstring s) {
+    if (!s) return {};
+    const char* c = env->GetStringUTFChars(s, nullptr);
+    if (!c) return {};
+    std::string out(c);
+    env->ReleaseStringUTFChars(s, c);
+    return out;
+}
 }  // namespace
 
 #define JNI(ret, name) \
@@ -40,14 +50,10 @@ JNI(void, setSurface)(JNIEnv* env, jobject, jlong h, jobject surface) {
 }
 
 JNI(void, setBeatModel)(JNIEnv* env, jobject, jlong h, jstring path) {
-    const char* c = env->GetStringUTFChars(path, nullptr);
-    from(h)->setBeatModel(c);
-    env->ReleaseStringUTFChars(path, c);
+    from(h)->setBeatModel(str(env, path));
 }
 JNI(void, setCacheDir)(JNIEnv* env, jobject, jlong h, jstring dir) {
-    const char* c = env->GetStringUTFChars(dir, nullptr);
-    from(h)->setCacheDir(c);
-    env->ReleaseStringUTFChars(dir, c);
+    from(h)->setCacheDir(str(env, dir));
 }
 JNI(jint, analysisState)(JNIEnv*, jobject, jlong h) { return from(h)->analysisState(); }
 JNI(jfloat, analysisProgress)(JNIEnv*, jobject, jlong h) { return from(h)->analysisProgress(); }
@@ -150,12 +156,8 @@ JNIX(jlong, start)(JNIEnv* env, jobject, jint audioFd, jint outFd, jint width, j
     p.settings.palette = palette;
     p.settings.beatFlash = beatFlash;
     p.settings.bloom = bloom;
-    const char* c = env->GetStringUTFChars(cacheDir, nullptr);
-    p.cacheDir = c;
-    env->ReleaseStringUTFChars(cacheDir, c);
-    const char* m = env->GetStringUTFChars(modelPath, nullptr);
-    p.modelPath = m;
-    env->ReleaseStringUTFChars(modelPath, m);
+    p.cacheDir = str(env, cacheDir);
+    p.modelPath = str(env, modelPath);
     p.overlay = bytesOf(env, overlay);
     p.overlayW = static_cast<uint32_t>(overlayW);
     p.overlayH = static_cast<uint32_t>(overlayH);

@@ -224,15 +224,22 @@ bool PostChain::uploadRgba(vk::Image* img, const uint8_t* rgba, uint32_t w, uint
     return ok;
 }
 
-bool PostChain::setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) {
+bool PostChain::setLayer(vk::Image* img, const uint8_t* rgba, uint32_t w, uint32_t h) {
     static const uint8_t clear[4] = {0, 0, 0, 0};
-    return rgba && w && h ? uploadRgba(&overlay_, rgba, w, h) : uploadRgba(&overlay_, clear, 1, 1);
+    const uint32_t maxDim = ctx_->props.limits.maxImageDimension2D;
+    const bool wanted = rgba && w && h;
+    if (wanted && w <= maxDim && h <= maxDim && uploadRgba(img, rgba, w, h)) return true;
+    if (wanted) LOGE("branding layer %ux%u could not be uploaded; clearing it", w, h);
+    // The composite pass always samples both layers, so never leave one without an image.
+    return uploadRgba(img, clear, 1, 1) && !wanted;
+}
+
+bool PostChain::setOverlay(const uint8_t* rgba, uint32_t w, uint32_t h) {
+    return setLayer(&overlay_, rgba, w, h);
 }
 
 bool PostChain::setBackground(const uint8_t* rgba, uint32_t w, uint32_t h) {
-    static const uint8_t clear[4] = {0, 0, 0, 0};
-    return rgba && w && h ? uploadRgba(&background_, rgba, w, h)
-                          : uploadRgba(&background_, clear, 1, 1);
+    return setLayer(&background_, rgba, w, h);
 }
 
 bool PostChain::setSwapchainPass(VkRenderPass pass) {
@@ -286,6 +293,7 @@ bool PostChain::resize(uint32_t w, uint32_t h) {
         if (!createTarget(&bloom_[i], std::max(1u, w_ >> (i + 1)), std::max(1u, h_ >> (i + 1))))
             return false;
     clearTargets();
+    feedbackLive_ = false;
     return true;
 }
 
@@ -436,7 +444,10 @@ void PostChain::fullscreenPass(VkCommandBuffer cmd, VkRenderPass rp, VkFramebuff
 void PostChain::record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look& look,
                        bool useTransition, float transition, VkFramebuffer swapFb,
                        VkExtent2D swapExtent, VkRenderPass swapPass) {
-    setSwapchainPass(swapPass);
+    if (!setSwapchainPass(swapPass)) {
+        LOGE("composite pipeline unavailable; skipping the frame");
+        return;
+    }
     VkImageView src = scene_[0].img.view;
     const VkExtent2D full{w_, h_};
 
@@ -448,11 +459,16 @@ void PostChain::record(VkCommandBuffer cmd, VkDescriptorSet frameSet, const Look
     }
     if (look.feedback > 0.001f) {
         const int prev = fbCur_ ^ 1;
-        const float pc[4] = {look.feedback, 0, 0, 0};
+        // When trails switch on, the history holds whatever was there the last time they ran:
+        // start from the current frame alone instead of flashing that stale picture.
+        const float pc[4] = {feedbackLive_ ? look.feedback : 0.f, 0, 0, 0};
+        feedbackLive_ = true;
         fullscreenPass(cmd, rpPost_, fb_[fbCur_].fbScene, full, pipes_.feedback, frameSet,
                        pairSet(src, fb_[prev].img.view), pc);
         src = fb_[fbCur_].img.view;
         fbCur_ = prev;
+    } else {
+        feedbackLive_ = false;
     }
 
     // Bloom: threshold + 13-tap into level 0, dual-filter chain down, additive upsample back up.

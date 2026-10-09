@@ -56,9 +56,9 @@ Android 12+ (API 31), arm64-v8a, Vulkan 1.1. Build: JDK 17+, Android SDK 36, NDK
 ```sh
 ./gradlew :app:assembleDebug                       # debug APK
 ./gradlew :app:testDebugUnitTest                   # Kotlin JVM tests (presets JSON)
-./gradlew :app:connectedDebugAndroidTest           # 11 instrumented tests, needs a device
+./gradlew :app:connectedDebugAndroidTest           # 15 instrumented tests, needs a device
 cmake -S engine -B build/host -G Ninja -DAV_BUILD_TESTS=ON -DAV_BUILD_TOOLS=ON
-cmake --build build/host && ctest --test-dir build/host   # 71 native tests on the host
+cmake --build build/host && ctest --test-dir build/host   # 74 native tests on the host
 build/host/av_inspect cache.avt                    # dump an analysis cache as JSON
 ```
 `./gradlew :app:assembleRelease` produces an R8-minified APK; it is signed when `keystore.properties`

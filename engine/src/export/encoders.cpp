@@ -29,19 +29,27 @@ constexpr int32_t kAacProfileLc = 2;
 
 EncoderBase::~EncoderBase() { abort(); }
 
+void EncoderBase::fail(const std::string& msg) {
+    {
+        std::lock_guard<std::mutex> lk(errorMu_);
+        if (error_.empty()) error_ = msg;
+    }
+    failed_ = true;
+}
+
 bool EncoderBase::startCodec(AMediaFormat* fmt, const char* mime) {
     codec_ = AMediaCodec_createEncoderByType(mime);
     if (!codec_) {
-        error_ = std::string("no encoder available for ") + mime;
+        fail(std::string("no encoder available for ") + mime);
         return false;
     }
     if (AMediaCodec_configure(codec_, fmt, nullptr, nullptr, AMEDIACODEC_CONFIGURE_FLAG_ENCODE) !=
         AMEDIA_OK) {
-        error_ = std::string("encoder rejected the configuration for ") + mime;
+        fail(std::string("encoder rejected the configuration for ") + mime);
         return false;
     }
     if (AMediaCodec_start(codec_) != AMEDIA_OK) {
-        error_ = std::string("encoder failed to start for ") + mime;
+        fail(std::string("encoder failed to start for ") + mime);
         return false;
     }
     drain_ = std::thread([this] { drainLoop(); });
@@ -52,10 +60,7 @@ ssize_t EncoderBase::waitInputBuffer() {
     while (!stop_.load() && !failed_.load()) {
         const ssize_t idx = AMediaCodec_dequeueInputBuffer(codec_, 10'000);
         if (idx >= 0) return idx;
-        if (idx != AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-            error_ = "dequeueInputBuffer failed";
-            failed_ = true;
-        }
+        if (idx != AMEDIACODEC_INFO_TRY_AGAIN_LATER) fail("dequeueInputBuffer failed");
     }
     return -1;
 }
@@ -80,10 +85,7 @@ void EncoderBase::drainLoop() {
             const bool eos = info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
             if (data && info.size > 0 && !config && track_ >= 0) {
                 if (!mux_->write(track_, data, info)) {
-                    if (!stop_.load()) {
-                        error_ = "muxer write failed";
-                        failed_ = true;
-                    }
+                    if (!stop_.load()) fail("muxer write failed");
                     AMediaCodec_releaseOutputBuffer(codec_, static_cast<size_t>(out), false);
                     break;
                 }
@@ -96,14 +98,12 @@ void EncoderBase::drainLoop() {
             track_ = mux_->addTrack(f);
             AMediaFormat_delete(f);
             if (track_ < 0) {
-                error_ = "could not add the encoder track to the muxer";
-                failed_ = true;
+                fail("could not add the encoder track to the muxer");
                 break;
             }
         } else if (out != AMEDIACODEC_INFO_TRY_AGAIN_LATER &&
                    out != AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-            error_ = "dequeueOutputBuffer failed";
-            failed_ = true;
+            fail("dequeueOutputBuffer failed");
             break;
         }
     }
@@ -174,8 +174,7 @@ bool VideoEncoder::queueFrame(const uint8_t* nv12, int64_t ptsUs) {
     uint8_t* dst = AMediaCodec_getInputBuffer(codec_, static_cast<size_t>(idx), &cap);
     const size_t need = static_cast<size_t>(stride_) * static_cast<size_t>(sliceHeight_) * 3 / 2;
     if (!dst || cap < need) {
-        error_ = "video input buffer too small";
-        failed_ = true;
+        fail("video input buffer too small");
         return false;
     }
     const uint8_t* srcY = nv12;
@@ -225,6 +224,10 @@ bool AudioEncoder::queuePcm(const int16_t* pcm, size_t frames, int64_t firstFram
         size_t cap = 0;
         uint8_t* dst = AMediaCodec_getInputBuffer(codec_, static_cast<size_t>(idx), &cap);
         const size_t n = std::min(frames - done, cap / 4);
+        if (!dst || n == 0) {
+            fail("audio input buffer unavailable");
+            return false;
+        }
         std::memcpy(dst, pcm + done * 2, n * 4);
         const int64_t pts = (firstFramePts + static_cast<int64_t>(done)) * 1'000'000 / sr_;
         if (AMediaCodec_queueInputBuffer(codec_, static_cast<size_t>(idx), 0, n * 4,

@@ -29,6 +29,17 @@ class AnalysisJob {
         cancel_.store(true);
         if (thread_.joinable()) thread_.join();
     }
+    /// Cancels any running analysis and forgets the previous result, so pollers never see the
+    /// last track's timeline while the next one is being opened.
+    void reset() {
+        cancel();
+        state_.store(State::Idle);
+        progress_.store(0.f);
+        fromCache_.store(false);
+        std::lock_guard<std::mutex> lk(mu_);
+        result_.reset();
+        error_.clear();
+    }
 
     State state() const { return state_.load(); }
     float progress() const { return progress_.load(); }
