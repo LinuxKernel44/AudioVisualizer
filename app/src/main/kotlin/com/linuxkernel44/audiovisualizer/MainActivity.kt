@@ -57,6 +57,39 @@ class MainActivity : ComponentActivity() {
         if (!ExportController.running) vm.pausePlayback()
     }
 
+    /**
+     * The fastest refresh rate the display offers at its current resolution, capped at 120 Hz (the
+     * preview target). The current mode's rate is not enough: high-refresh phones report 60 Hz
+     * until an app asks for more.
+     */
+    private fun previewFps(): Float {
+        val d = display ?: return 60f
+        val mode = d.mode
+        val best = d.supportedModes
+            .filter { it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight }
+            .maxOfOrNull { it.refreshRate } ?: d.refreshRate
+        return best.coerceIn(30f, 120f)
+    }
+
+    /**
+     * Asks for the display mode matching the preview rate. The surface also requests its rate, but
+     * some vendor policies only honour a window-level mode request for apps they do not know.
+     */
+    fun requestPreviewMode(enabled: Boolean) {
+        if (!enabled) {  // battery saver: let the system pick (the renderer asks for 30 Hz)
+            window.attributes = window.attributes.also { it.preferredDisplayModeId = 0 }
+            return
+        }
+        val d = display ?: return
+        val target = previewFps()
+        val cur = d.mode
+        val mode = d.supportedModes.firstOrNull {
+            it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight &&
+                kotlin.math.abs(it.refreshRate - target) < 1f
+        } ?: return
+        window.attributes = window.attributes.also { it.preferredDisplayModeId = mode.modeId }
+    }
+
     override fun onDestroy() {
         // The listener references this activity; a recreated activity registers its own.
         thermalListener?.let { (getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager).removeThermalStatusListener(it) }
@@ -85,7 +118,7 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         handleIntent(intent)
-        vm.engine.setTargetFps(display?.refreshRate ?: 60f)
+        vm.engine.setTargetFps(previewFps())
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
             val l = android.os.PowerManager.OnThermalStatusChangedListener { status -> vm.onThermalStatus(status) }
@@ -94,6 +127,7 @@ class MainActivity : ComponentActivity() {
             vm.onThermalStatus(pm.currentThermalStatus)
         }
         setContent {
+            LaunchedEffect(vm.batterySaver) { requestPreviewMode(!vm.batterySaver) }
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
                 PlayerScreen(vm)
             }
