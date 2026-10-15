@@ -11,3 +11,12 @@ captures/
 .externalNativeBuild/
 *.apk
 *.aab
+
+# secrets / local-only
+*.jks
+*.keystore
+keystore.properties
+local.properties
+android/key
+CLAUDE.md
+.env
