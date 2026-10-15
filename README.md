@@ -6,7 +6,7 @@ live Vulkan visualizer that follows the song's structure, and export an H.264/AA
 The Android UI (Kotlin, Jetpack Compose) is thin. Decoding, DSP, analysis, simulation, rendering and
 video export live in a multi-threaded C++20 engine reached through a single JNI facade.
 
-> **All rights reserved.** This is a private, proprietary project.
+> **All rights reserved.** The source is public for reading and reference; no license is granted to copy, modify or redistribute it.
 
 ## What it does
 * **Import** MP3, AAC/M4A, FLAC, WAV, OGG/Opus and anything else Android's `MediaCodec` can decode
